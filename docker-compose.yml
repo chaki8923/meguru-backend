@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: meguru-postgres
+    environment:
+      POSTGRES_DB: meguru_db
+      POSTGRES_USER: meguru_user
+      POSTGRES_PASSWORD: meguru_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - meguru-network
+
+  app:
+    build: .
+    container_name: meguru-backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=meguru_user
+      - DB_PASSWORD=meguru_password
+      - DB_NAME=meguru_db
+    networks:
+      - meguru-network
+
+volumes:
+  postgres_data:
+
+networks:
+  meguru-network:
+    driver: bridge 
