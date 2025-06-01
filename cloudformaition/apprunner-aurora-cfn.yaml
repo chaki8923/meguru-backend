@@ -1,0 +1,444 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Go (Gin) App on App Runner with Aurora Serverless
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: my-go-app
+    Description: Project name for tagging and naming resources.
+  AppRunnerCpu:
+    Type: String
+    Default: "1 vCPU" # 1024 CPU units
+    Description: CPU for App Runner service. (e.g., 0.25 vCPU, 0.5 vCPU, 1 vCPU, 2 vCPU, 4 vCPU)
+    AllowedValues:
+      - "0.25 vCPU"
+      - "0.5 vCPU"
+      - "1 vCPU"
+      - "2 vCPU"
+      - "4 vCPU"
+  AppRunnerMemory:
+    Type: String
+    Default: "2 GB" # 2048 MB
+    Description: Memory for App Runner service. (e.g., 0.5 GB, 1 GB, 2 GB, 3 GB, ... up to 12 GB based on CPU)
+    AllowedValues:
+      - "0.5 GB"
+      - "1 GB"
+      - "2 GB"
+      - "3 GB"
+      - "4 GB"
+  AppRunnerMinSize:
+    Type: Number
+    Default: 1
+    Description: Minimum number of instances for App Runner (to minimize cost, can be 1; for higher availability, >1).
+  AppRunnerMaxSize:
+    Type: Number
+    Default: 3
+    Description: Maximum number of instances for App Runner.
+  AppRunnerPort:
+    Type: Number
+    Default: 8080
+    Description: Port your Go Gin application listens on.
+  # ImageRepositoryType ECR_PUBLIC or ECR (if ECR, ImageIdentifier needs to be ECR image URI)
+  ImageRepositoryType:
+    Type: String
+    Default: ECR_PUBLIC
+    AllowedValues:
+      - ECR_PUBLIC
+      - ECR
+    Description: Type of the image repository.
+  ImageIdentifier:
+    Type: String
+    # Example: public.ecr.aws/aws-containers/hello-app-runner:latest for ECR_PUBLIC
+    # Example: 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-go-app:latest for ECR
+    Description: Image identifier (e.g., public ECR alias or private ECR URI).
+  DatabaseName:
+    Type: String
+    Default: myappdb
+    Description: Initial database name for Aurora Serverless.
+  DatabaseUsername:
+    Type: String
+    Default: admin
+    Description: Master username for Aurora Serverless.
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    Description: Master password for Aurora Serverless. Min 8 characters.
+    MinLength: 8 # <--- この行を追加
+  MinAuroraCapacity:
+    Type: Number
+    Default: 0.5 # Minimum ACUs for Aurora Serverless v2 (cost saving)
+    Description: Minimum capacity units for Aurora Serverless v2.
+  MaxAuroraCapacity:
+    Type: Number
+    Default: 2 # Maximum capacity units for Aurora Serverless v2.
+    Description: Maximum capacity units for Aurora Serverless v2.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Project Configuration"
+        Parameters:
+          - ProjectName
+      - Label:
+          default: "App Runner Configuration"
+        Parameters:
+          - AppRunnerCpu
+          - AppRunnerMemory
+          - AppRunnerMinSize
+          - AppRunnerMaxSize
+          - AppRunnerPort
+          - ImageRepositoryType
+          - ImageIdentifier
+      - Label:
+          default: "Database Configuration"
+        Parameters:
+          - DatabaseName
+          - DatabaseUsername
+          - DatabasePassword
+          - MinAuroraCapacity
+          - MaxAuroraCapacity
+    ParameterLabels:
+      ProjectName:
+        default: "Project Name"
+      AppRunnerCpu:
+        default: "App Runner CPU"
+      AppRunnerMemory:
+        default: "App Runner Memory"
+      # ... other labels
+
+Resources:
+  # --- VPC and Networking (Required for Aurora Serverless & App Runner VPC Connector) ---
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-VPC"
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-PublicSubnet1"
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-PublicSubnet2"
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-PrivateSubnet1"
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.4.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-PrivateSubnet2"
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-IGW"
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-PublicRouteTable"
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  # NAT Gateway for private subnets to access internet (e.g., for ECR Public if needed, or other external services)
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet1 # Place NAT Gateway in a public subnet
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-NatGateway"
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-PrivateRouteTable"
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway # Route outbound traffic from private subnets through NAT Gateway
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  # --- Security Groups ---
+  AppRunnerSecurityGroup: # Security group for App Runner's VPC interface
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SG for App Runner VPC Interface
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-AppRunnerSG"
+
+  DatabaseSecurityGroup: # Security group for Aurora
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SG for Aurora Database
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432 # Assuming PostgreSQL compatible Aurora
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref AppRunnerSecurityGroup # Allow traffic from App Runner
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-DatabaseSG"
+
+  # --- Aurora Serverless v2 ---
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for Aurora
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-DBSubnetGroup"
+
+  AuroraDBClusterParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup
+    Properties:
+      Description: Cluster Parameter Group for Aurora Serverless
+      Family: aurora-postgresql15 # Adjust version as needed (e.g., aurora-mysql8.0)
+      # Parameters:
+        # Add specific parameters if needed
+        # client_encoding: utf8 # Example for PostgreSQL
+        # character_set_server: utf8mb4 # Example for MySQL
+        # collation_server: utf8mb4_unicode_ci # Example for MySQL
+        # log_statement: "all" # For debugging, can increase cost
+        # rds.force_ssl: "1" # Enforce SSL
+        # TimeZone: Asia/Tokyo
+
+
+  AuroraDBCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora-postgresql # Or aurora-mysql
+      EngineVersion: '15.3' # Specify your desired Aurora PostgreSQL version, check latest supported
+      # For MySQL: EngineVersion: '8.0.mysql_aurora.3.04.0'
+      DatabaseName: !Ref DatabaseName
+      MasterUsername: !Ref DatabaseUsername
+      MasterUserPassword: !Ref DatabasePassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroupIds:
+        - !Ref DatabaseSecurityGroup
+      DBClusterParameterGroupName: !Ref AuroraDBClusterParameterGroup
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: !Ref MinAuroraCapacity
+        MaxCapacity: !Ref MaxAuroraCapacity
+      # BackupRetentionPeriod: 7 # Default is 1, adjust as needed
+      # DeletionProtection: true # For production
+      # CopyTagsToSnapshot: true
+      # PubliclyAccessible: false # Should be false for security
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-AuroraCluster"
+
+  # --- App Runner VPC Connector (to connect to Aurora in VPC) ---
+  AppRunnerVPCConnector:
+    Type: AWS::AppRunner::VpcConnector
+    Properties:
+      Subnets:
+        - !Ref PrivateSubnet1 # App Runner will place ENIs in these subnets
+        - !Ref PrivateSubnet2
+      SecurityGroups:
+        - !Ref AppRunnerSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-AppRunnerVPCConnector"
+
+  # --- App Runner Service ---
+  # Optional: IAM Role for App Runner to access ECR if private
+  AppRunnerECRAccessRole:
+    Type: AWS::IAM::Role
+    Condition: IsECRPrivate # Create only if ImageRepositoryType is ECR
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: build.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AppRunnerECRAccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "ecr:GetDownloadUrlForLayer"
+                  - "ecr:BatchGetImage"
+                  - "ecr:BatchCheckLayerAvailability"
+                  - "ecr:DescribeImages" # Required by App Runner
+                  - "ecr:GetAuthorizationToken"
+                Resource: "*" # Be more specific if possible, e.g., ARN of your ECR repository
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-AppRunnerECRAccessRole"
+
+  AppRunnerService:
+    Type: AWS::AppRunner::Service
+    Properties:
+      ServiceName: !Sub "${ProjectName}-service"
+      SourceConfiguration:
+        ImageRepository:
+          ImageIdentifier: !Ref ImageIdentifier
+          ImageRepositoryType: !Ref ImageRepositoryType
+          ImageConfiguration:
+            Port: !Ref AppRunnerPort
+            # RuntimeEnvironmentVariables: # Pass DB credentials securely, preferably via Secrets Manager
+            #   - Name: DB_HOST
+            #     Value: !GetAtt AuroraDBCluster.Endpoint.Address
+            #   - Name: DB_PORT
+            #     Value: !GetAtt AuroraDBCluster.Endpoint.Port
+            #   - Name: DB_USER
+            #     Value: !Ref DatabaseUsername
+            #   - Name: DB_PASSWORD
+            #     Value: !Ref DatabasePassword # Direct env var for password is not recommended for production
+            #   - Name: DB_NAME
+            #     Value: !Ref DatabaseName
+            #   - Name: GIN_MODE
+            #     Value: release # Or debug
+        # AutoDeploymentsEnabled: true # Enable for CI/CD from ECR
+        AuthenticationConfiguration:
+          AccessRoleArn: !If [IsECRPrivate, !GetAtt AppRunnerECRAccessRole.Arn, !Ref "AWS::NoValue"]
+      InstanceConfiguration:
+        Cpu: !Ref AppRunnerCpu
+        Memory: !Ref AppRunnerMemory
+        # InstanceRoleArn: # Optional: Role for your application code to access other AWS services
+      NetworkConfiguration:
+        EgressConfiguration:
+          EgressType: VPC # Required to connect to services in your VPC
+          VpcConnectorArn: !Ref AppRunnerVPCConnector
+        # IngressConfiguration:
+        #   IsPubliclyAccessible: true # Default true
+      HealthCheckConfiguration:
+        Protocol: TCP # Or HTTP
+        Path: "/health" # If HTTP, specify your health check path
+        Interval: 10 # Seconds
+        Timeout: 5 # Seconds
+        HealthyThreshold: 1
+        UnhealthyThreshold: 2
+      AutoScalingConfigurationArn: !Ref AppRunnerASConfig
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-AppRunnerService"
+
+  AppRunnerASConfig: # Auto Scaling Configuration
+    Type: AWS::AppRunner::AutoScalingConfiguration
+    Properties:
+      AutoScalingConfigurationName: !Sub "${ProjectName}-as-config"
+      MinSize: !Ref AppRunnerMinSize
+      MaxSize: !Ref AppRunnerMaxSize
+      # Concurrency: 100 # Adjust based on your application's expected load and performance per instance
+      # CpuUtilizationThreshold: 70 # Percentage
+      # MemoryUtilizationThreshold: 70 # Percentage
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-AppRunnerASConfig"
+
+Conditions:
+  IsECRPrivate: !Equals [!Ref ImageRepositoryType, "ECR"]
+
+Outputs:
+  AppRunnerServiceUrl:
+    Description: URL of the App Runner service
+    Value: !GetAtt AppRunnerService.ServiceUrl
+  AuroraDBClusterEndpoint:
+    Description: Endpoint address for the Aurora DB cluster
+    Value: !GetAtt AuroraDBCluster.Endpoint.Address
+  AuroraDBClusterPort:
+    Description: Endpoint port for the Aurora DB cluster
+    Value: !GetAtt AuroraDBCluster.Endpoint.Port
+  VPCId:
+    Description: ID of the created VPC
+    Value: !Ref VPC
+  AppRunnerVPCConnectorArn:
+    Description: ARN of the App Runner VPC Connector
+    Value: !Ref AppRunnerVPCConnector
