@@ -29,6 +29,7 @@ type CreateUserResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// NewUserUsecase creates a new UserUsecase with the provided UserRepository.
 func NewUserUsecase(userRepo repository.UserRepository) *UserUsecase {
 	return &UserUsecase{
 		userRepo: userRepo,
