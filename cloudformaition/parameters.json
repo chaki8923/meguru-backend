@@ -1,0 +1,22 @@
+[
+    {
+      "ParameterKey": "ProjectName",
+      "ParameterValue": "meguru-backend"
+    },
+    {
+      "ParameterKey": "GitHubRepo",
+      "ParameterValue": "https://github.com/chaki8923/meguru-backend"
+    },
+    {
+      "ParameterKey": "GitHubBranch",
+      "ParameterValue": "main"
+    },
+    {
+      "ParameterKey": "DatabaseUsername",
+      "ParameterValue": "admin"
+    },
+    {
+      "ParameterKey": "DatabasePassword",
+      "ParameterValue": "ChangeThisPassword123!"
+    }
+  ]

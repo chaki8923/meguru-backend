@@ -1,0 +1,21 @@
+# apprunner.yaml - App Runner設定ファイル
+version: 1.0
+runtime: go1.x
+build:
+  commands:
+    build:
+      - echo "Building Go application..."
+      - go mod download
+      - go build -o main .
+run:
+  runtime-version: 1.21
+  command: ./main
+  network:
+    port: 8080
+  env:
+    - name: PORT
+      value: "8080"
+    - name: AWS_REGION
+      value: "ap-northeast-1"
+    - name: DB_SECRET_ARN
+      value: "arn:aws:secretsmanager:ap-northeast-1:ACCOUNT_ID:secret:PROJECT_NAME/database"
