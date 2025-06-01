@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// あああああこれは消す
 type UserRepository interface {
 	Create(ctx context.Context, user *entity.User) error
 	GetByEmail(ctx context.Context, email string) (*entity.User, error)
