@@ -62,7 +62,7 @@ func (u *UserUsecase) CreateUser(ctx context.Context, req *CreateUserRequest) (*
 	if err := u.userRepo.Create(ctx, user); err != nil {
 		return nil, err
 	}
-	// このコメントアウトは絶対にpush前に消すこと
+
 	return &CreateUserResponse{
 		ID:        user.ID,
 		Email:     user.Email,
