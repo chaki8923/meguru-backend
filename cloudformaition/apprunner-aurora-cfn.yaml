@@ -15,7 +15,6 @@ Parameters:
       - "0.5 vCPU"
       - "1 vCPU"
       - "2 vCPU"
-      - "4 vCPU"
   AppRunnerMemory:
     Type: String
     Default: "2 GB" # 2048 MB
@@ -25,7 +24,6 @@ Parameters:
       - "1 GB"
       - "2 GB"
       - "3 GB"
-      - "4 GB"
   AppRunnerMinSize:
     Type: Number
     Default: 1
@@ -57,7 +55,7 @@ Parameters:
     Description: Initial database name for Aurora Serverless.
   DatabaseUsername:
     Type: String
-    Default: admin
+    Default: meguru
     Description: Master username for Aurora Serverless.
   DatabasePassword:
     Type: String
@@ -285,14 +283,9 @@ Resources:
     Properties:
       Description: Cluster Parameter Group for Aurora Serverless
       Family: aurora-postgresql15 # Adjust version as needed (e.g., aurora-mysql8.0)
-      # Parameters:
-        # Add specific parameters if needed
-        # client_encoding: utf8 # Example for PostgreSQL
-        # character_set_server: utf8mb4 # Example for MySQL
-        # collation_server: utf8mb4_unicode_ci # Example for MySQL
-        # log_statement: "all" # For debugging, can increase cost
-        # rds.force_ssl: "1" # Enforce SSL
-        # TimeZone: Asia/Tokyo
+      Parameters:
+        client_encoding: utf8 # Example for PostgreSQL
+        rds.force_ssl: "1" # Enforce SSL
 
 
   AuroraDBCluster:
@@ -305,8 +298,6 @@ Resources:
       MasterUsername: !Ref DatabaseUsername
       MasterUserPassword: !Ref DatabasePassword
       DBSubnetGroupName: !Ref DBSubnetGroup
-      VPCSecurityGroupIds:
-        - !Ref DatabaseSecurityGroup
       DBClusterParameterGroupName: !Ref AuroraDBClusterParameterGroup
       ServerlessV2ScalingConfiguration:
         MinCapacity: !Ref MinAuroraCapacity
@@ -372,20 +363,20 @@ Resources:
           ImageRepositoryType: !Ref ImageRepositoryType
           ImageConfiguration:
             Port: !Ref AppRunnerPort
-            # RuntimeEnvironmentVariables: # Pass DB credentials securely, preferably via Secrets Manager
-            #   - Name: DB_HOST
-            #     Value: !GetAtt AuroraDBCluster.Endpoint.Address
-            #   - Name: DB_PORT
-            #     Value: !GetAtt AuroraDBCluster.Endpoint.Port
-            #   - Name: DB_USER
-            #     Value: !Ref DatabaseUsername
-            #   - Name: DB_PASSWORD
-            #     Value: !Ref DatabasePassword # Direct env var for password is not recommended for production
-            #   - Name: DB_NAME
-            #     Value: !Ref DatabaseName
-            #   - Name: GIN_MODE
-            #     Value: release # Or debug
-        # AutoDeploymentsEnabled: true # Enable for CI/CD from ECR
+            RuntimeEnvironmentVariables: # Pass DB credentials securely, preferably via Secrets Manager
+              - Name: DB_HOST
+                Value: !GetAtt AuroraDBCluster.Endpoint.Address
+              - Name: DB_PORT
+                Value: !GetAtt AuroraDBCluster.Endpoint.Port
+              - Name: DB_USER
+                Value: !Ref DatabaseUsername
+              - Name: DB_PASSWORD
+                Value: !Ref DatabasePassword # Direct env var for password is not recommended for production
+              - Name: DB_NAME
+                Value: !Ref DatabaseName
+              - Name: GIN_MODE
+                Value: release # Or debug
+        AutoDeploymentsEnabled: true # Enable for CI/CD from ECR
         AuthenticationConfiguration:
           AccessRoleArn: !If [IsECRPrivate, !GetAtt AppRunnerECRAccessRole.Arn, !Ref "AWS::NoValue"]
       InstanceConfiguration:
@@ -401,8 +392,8 @@ Resources:
       HealthCheckConfiguration:
         Protocol: TCP # Or HTTP
         Path: "/health" # If HTTP, specify your health check path
-        Interval: 10 # Seconds
-        Timeout: 5 # Seconds
+        Interval: 20 # Seconds
+        Timeout: 10 # Seconds
         HealthyThreshold: 1
         UnhealthyThreshold: 2
       AutoScalingConfigurationArn: !Ref AppRunnerASConfig
