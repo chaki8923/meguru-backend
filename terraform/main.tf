@@ -227,8 +227,8 @@ resource "aws_security_group_rule" "app_runner_egress_to_db" {
   from_port                = 5432
   to_port                  = 5432
   protocol                 = "tcp"
-  source_security_group_id = aws_security_group.database.id
-  security_group_id        = aws_security_group.app_runner.id
+  source_security_group_id = aws_security_group.database.id # これがDBのSGを指す（宛先として機能）
+  security_group_id        = aws_security_group.app_runner.id  # このルールが適用されるSG
 }
 
 resource "aws_security_group_rule" "database_ingress_from_app_runner" {
@@ -236,7 +236,7 @@ resource "aws_security_group_rule" "database_ingress_from_app_runner" {
   from_port                = 5432
   to_port                  = 5432
   protocol                 = "tcp"
-  source_security_group_id = aws_security_group.app_runner.id
+  source_security_group_id = aws_security_group.app_runner.id # こちらは正しい
   security_group_id        = aws_security_group.database.id
 }
 
