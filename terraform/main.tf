@@ -66,7 +66,7 @@ variable "app_runner_port" {
 variable "image_repository_type" {
   description = "Image repository type"
   type        = string
-  default     = "ECR_PUBLIC"
+  default     = "ECR"
   validation {
     condition     = contains(["ECR_PUBLIC", "ECR"], var.image_repository_type)
     error_message = "Image repository type must be either ECR_PUBLIC or ECR."
