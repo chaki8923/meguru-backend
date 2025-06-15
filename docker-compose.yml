@@ -15,7 +15,9 @@ services:
       - meguru-network
 
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
     container_name: meguru-backend
     ports:
       - "8080:8080"
@@ -27,6 +29,8 @@ services:
       - DB_USER=meguru_user
       - DB_PASSWORD=meguru_password
       - DB_NAME=meguru_db
+    volumes:
+      - .:/app
     networks:
       - meguru-network
 

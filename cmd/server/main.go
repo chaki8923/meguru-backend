@@ -29,7 +29,7 @@ func main() {
         
         // 基本的なヘルスチェック応答
         healthResponse := gin.H{
-            "status":    "ok",
+            "status":    "okだよ",
             "service":   "meguru-backend",
             "timestamp": now.Unix(),
             "time":      now.Format(time.RFC3339),
