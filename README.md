@@ -50,9 +50,9 @@ DB_PORT=5432
 DB_USER=meguru_user
 DB_PASSWORD=meguru_password
 DB_NAME=meguru_db
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
 PORT=8080
 DATABASE_URL=postgres://meguru_user:meguru_password@localhost:5432/meguru_db?sslmode=disable
+JWT_SECRET_KEY=your-super-secret-jwt-key-change-this-in-production
 EOF
 ```
 
@@ -179,9 +179,9 @@ DB_PORT=5432
 DB_USER=meguru_user
 DB_PASSWORD=meguru_password
 DB_NAME=meguru_db
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
 PORT=8080
 DATABASE_URL=postgres://meguru_user:meguru_password@localhost:5432/meguru_db?sslmode=disable
+JWT_SECRET_KEY=your-super-secret-jwt-key-change-this-in-production
 ```
 
 ### フロントエンドのセットアップ

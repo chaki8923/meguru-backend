@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -10,9 +11,15 @@ import (
 	"github.com/google/uuid"
 )
 
-var jwtSecretKey = []byte("your-very-secret-key")
+var jwtSecretKey []byte
 
 func GenerateJWT(userID uuid.UUID) (string, error) {
+	secret := os.Getenv("JWT_SECRET_KEY")
+	if secret == "" {
+		panic("JWT_SECRET_KEY environment variable is not set")
+	}
+	jwtSecretKey = []byte(secret)
+
 	claims := jwt.MapClaims{
 		"sub": userID.String(),
 		"exp": time.Now().Add(24 * time.Hour).Unix(),
