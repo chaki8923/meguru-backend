@@ -34,19 +34,18 @@ func NewUserUsecase(
 		userQueryService:  userQueryService,
 	}
 }
-
-func (u *UserUsecase) CreateUser(ctx context.Context, req *dto.CreateUserRequest) (*dto.CreateUserResponse, string, error) {
+func (u *UserUsecase) CreateUser(ctx context.Context, req *dto.CreateUserRequest) (*dto.SigninResponse, error) {
 	exists, err := u.userDomainService.ExistsByEmail(ctx, req.Email)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	if exists {
-		return nil, "", errors.New("user with this email already exists")
+		return nil, errors.New("user with this email already exists")
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	user, err := entity.NewUser(
@@ -59,27 +58,30 @@ func (u *UserUsecase) CreateUser(ctx context.Context, req *dto.CreateUserRequest
 		time.Now(),
 	)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	if err := u.userRepo.Create(ctx, user); err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	token, err := middleware.GenerateJWT(user.UserID.Value())
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
-	resp := &dto.CreateUserResponse{
+	userResp := &dto.GetUserResponse{
 		ID:        user.ID,
 		UserID:    user.UserID.String(),
-		Name:      user.Name.String(),
 		Email:     user.Email.String(),
+		Name:      user.Name.String(),
 		CreatedAt: user.CreatedAt,
 	}
 
-	return resp, token, nil
+	return &dto.SigninResponse{
+		Token: token,
+		User:  userResp,
+	}, nil
 }
 
 func (u *UserUsecase) Signin(ctx context.Context, req *dto.SigninRequest) (*dto.SigninResponse, error) {

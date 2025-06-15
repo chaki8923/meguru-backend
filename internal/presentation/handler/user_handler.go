@@ -22,19 +22,18 @@ func NewUserHandler(userUsecase *usecase.UserUsecase) *UserHandler {
 func (uc *UserHandler) CreateUser(c *gin.Context) {
 	var req dto.CreateUserRequest
 
-	err := c.ShouldBindJSON(&req)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	resp, err := uc.userUsecase.CreateUser(c.Request.Context(), &req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	user, token, err := uc.userUsecase.CreateUser(c.Request.Context(), &req)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{"data": user, "token": token})
+	c.JSON(http.StatusCreated, gin.H{"data": resp})
 }
 
 func (uc *UserHandler) Signin(c *gin.Context) {
