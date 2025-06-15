@@ -271,7 +271,6 @@ meguru/
     │       └── migrations/       # データベースマイグレーションファイル
     ├── docker-compose.yml
     ├── Dockerfile
-    ├── init.sql                  # データベース初期化スクリプト
     ├── go.mod
     ├── go.sum
     ├── .env.example              # 環境変数のサンプルファイル
@@ -548,6 +547,38 @@ internal/
 │   └── middleware/            # JWT認証などのミドルウェア（共通処理）
 └── routes/                   # ルーティングファイル
     └── router.go
+```
+
+## データベースマイグレーション
+本プロジェクトでは、golang-migrate/migrate を利用してデータベースのスキーマ管理を行っています。
+
+### マイグレーションファイルの管理
+マイグレーションファイルは meguru-backend/scripts/db/migrations/ に配置しています。
+
+ファイル名はタイムスタンプ + 処理内容を表す形式で管理しています。
+```
+例：
+20250607120000_create_stores_table.up.sql
+20250607120000_create_stores_table.down.sql
+```
+
+### マイグレーションの追加手順
+1. 新しいマイグレーションファイルを作成（例: 20250607123000_add_column_to_users.up.sql、20250607123000_add_column_to_users.down.sql）
+
+2. .up.sql に追加・変更のSQLを記述
+
+3. .down.sql に取り消しのSQLを記述
+
+4. マイグレーションを実行してスキーマを適用
+
+### マイグレーションの適用（最新バージョンまで）
+```
+docker compose exec app migrate -path ./scripts/db/migrations -database "${DATABASE_URL}" up
+```
+
+### ロールバック
+```
+docker compose exec app migrate -path ./scripts/db/migrations -database "${DATABASE_URL}" down
 ```
 
 ## 今後の機能
