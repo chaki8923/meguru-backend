@@ -19,6 +19,7 @@ func main() {
 		log.Println("No .env file found")
 	}
 
+    
 	// Database configuration
 	dbConfig := database.GetConfigFromEnv()
 
@@ -34,12 +35,14 @@ func main() {
 
 	// Initialize use cases
 	userUsecase := usecase.NewUserUsecase(userRepo)
+	healthUsecase := usecase.NewHealthUsecase()
 
 	// Initialize controllers
 	userController := controller.NewUserController(userUsecase)
+	healthController := controller.NewHealthController(healthUsecase)
 
 	// Initialize router
-	r := router.NewRouter(userController)
+	r := router.NewRouter(userController, healthController)
 
 	// Start server
 	port := os.Getenv("PORT")

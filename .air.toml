@@ -1,0 +1,24 @@
+# ファイルパス: (プロジェクトルート)/.air.toml
+
+# airを実行する場所（プロジェクトルート）
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  # ビルドコマンドを修正。./cmd/server をビルド対象として明記する。
+  cmd = "go build -o ./tmp/main ./cmd/server"
+  # 実行ファイルは ./tmp/main に生成される
+  bin = "./tmp/main"
+  
+  log = "air_errors.log"
+  delay = 1000 # ms
+
+  poll = true
+  poll_interval = 500 # ms (ファイルのチェック間隔、お好みで調整)
+  include_ext = ["go", "tpl", "tmpl", "html"]
+  exclude_dir = ["assets", "tmp", "vendor"]
+
+[log]
+  time = true
+
+[color]

@@ -1,0 +1,25 @@
+# AWS設定
+aws_region = "ap-northeast-1"
+
+# プロジェクト設定
+project_name = "meguru-backend"
+
+# App Runner設定
+app_runner_cpu      = "0.5 vCPU"
+app_runner_memory   = "1 GB"
+app_runner_min_size = 1
+app_runner_max_size = 2
+app_runner_port     = 8080
+
+# コンテナイメージ設定
+image_repository_type = "ECR_PUBLIC"  # または "ECR"
+image_identifier      = "public.ecr.aws/your-registry/your-image:latest"
+
+# データベース設定
+database_name     = "megurudb"
+database_username = "meguru"
+database_password = "your-secure-password-here"  # 実際のパスワードに変更してください
+
+# Aurora設定
+min_aurora_capacity = 0.5
+max_aurora_capacity = 1 
