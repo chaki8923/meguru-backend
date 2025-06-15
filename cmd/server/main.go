@@ -1,94 +1,55 @@
 package main
 
 import (
-    "log"
-    "net/http"
-    "os"
-    "time"
-    "github.com/gin-gonic/gin"
+	"log"
+	"os"
+
+	infraDB "meguru-backend/internal/infrastructure/database"
+	"meguru-backend/internal/infrastructure/router"
+	"meguru-backend/internal/interface/controller"
+	"meguru-backend/internal/usecase"
+	"meguru-backend/pkg/database"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
-    // 環境変数をログ出力（デバッグ用）
-    log.Printf("PORT: %s", os.Getenv("PORT"))
-    log.Printf("DB_HOST: %s", os.Getenv("DB_HOST"))
-    log.Printf("DB_PORT: %s", os.Getenv("DB_PORT"))
-    log.Printf("DB_USER: %s", os.Getenv("DB_USER"))
-    log.Printf("DB_NAME: %s", os.Getenv("DB_NAME"))
-    log.Printf("GIN_MODE: %s", os.Getenv("GIN_MODE"))
+	// Load .env file if exists
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found")
+	}
 
-    // Ginルーターを初期化
-    r := gin.New()
-    r.Use(gin.Logger(), gin.Recovery())
+	// Database configuration
+	dbConfig := database.GetConfigFromEnv()
 
-    // ヘルスチェックエンドポイント
-    r.GET("/health", func(c *gin.Context) {
-        log.Printf("Health check endpoint accessed from %s", c.ClientIP())
-        
-        now := time.Now()
-        
-        // 基本的なヘルスチェック応答
-        healthResponse := gin.H{
-            "status":    "okだよ",
-            "service":   "meguru-backend",
-            "timestamp": now.Unix(),
-            "time":      now.Format(time.RFC3339),
-            "uptime":    "running",
-        }
-        
-        // 環境変数の確認（データベース設定があるかチェック）
-        if dbHost := os.Getenv("DB_HOST"); dbHost != "" {
-            healthResponse["database"] = gin.H{
-                "configured": true,
-                "host":       dbHost,
-                "status":     "connection_not_tested", // 実際のDB接続テストは後で実装
-            }
-        } else {
-            healthResponse["database"] = gin.H{
-                "configured": false,
-                "status":     "not_configured",
-            }
-        }
-        
-        c.JSON(http.StatusOK, healthResponse)
-    })
+	// Connect to database
+	db, err := database.NewPostgresDB(dbConfig)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
 
-    // 基本的な動作確認エンドポイント
-    r.GET("/", func(c *gin.Context) {
-        c.JSON(http.StatusOK, gin.H{
-            "message": "Meguru Backend API",
-            "status":  "running",
-        })
-    })
+	// Initialize repositories
+	userRepo := infraDB.NewUserRepository(db)
 
-    // ダミーAPIエンドポイント
-    api := r.Group("/api/v1")
-    {
-        api.GET("/users", func(c *gin.Context) {
-            c.JSON(http.StatusOK, gin.H{
-                "message": "Users endpoint",
-                "data":    []interface{}{},
-            })
-        })
-        
-        api.POST("/users", func(c *gin.Context) {
-            c.JSON(http.StatusCreated, gin.H{
-                "message": "User created (mock)",
-            })
-        })
-    }
+	// Initialize use cases
+	userUsecase := usecase.NewUserUsecase(userRepo)
 
-    // Start server
-    port := os.Getenv("PORT")
-    if port == "" {
-        port = "8080"
-    }
+	// Initialize controllers
+	userController := controller.NewUserController(userUsecase)
 
-    address := "0.0.0.0:" + port
-    log.Printf("Server starting on address %s", address)
-    log.Printf("Health check endpoint: http://%s/health", address)
+	// Initialize router
+	r := router.NewRouter(userController)
     
-    if err := r.Run(address); err != nil {
-        log.Fatalf("Failed to start server: %v", err)
-    }
-}
+
+	// Start server
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Printf("Server starting on port %s", port)
+	if err := r.Run(":" + port); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
+} 
