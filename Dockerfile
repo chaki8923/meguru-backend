@@ -12,7 +12,7 @@ RUN go mod download
 COPY . .
 
 # migrate CLIをインストール
-RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.2
 
 # ★★★★★ 修正点 ★★★★★
 # App Runnerの実行環境(linux/amd64)向けにアプリケーションをビルドします。
