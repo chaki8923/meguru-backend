@@ -1,0 +1,14 @@
+CREATE TABLE stores (
+    id BIGSERIAL PRIMARY KEY,
+    store_id VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    phone_number VARCHAR(50),
+    zipcode VARCHAR(20),
+    prefecture VARCHAR(100),
+    city VARCHAR(100),
+    street VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
