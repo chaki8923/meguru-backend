@@ -4,13 +4,12 @@ import (
 	"log"
 	"os"
 
-	infraDB "meguru-backend/internal/infrastructure/database"
-	"meguru-backend/internal/infrastructure/router"
-	"meguru-backend/internal/interface/controller"
-	"meguru-backend/internal/usecase"
-	"meguru-backend/pkg/database"
-
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+
+	"meguru-backend/internal/routes"
+	"meguru-backend/pkg/database"
 )
 
 func main() {
@@ -19,7 +18,17 @@ func main() {
 		log.Println("No .env file found")
 	}
 
-    
+	// ルーティング
+	r := gin.Default()
+
+	// CORS設定などの共通ミドルウェア
+	config := cors.DefaultConfig()
+	config.AllowOrigins = []string{"http://localhost:3000"}
+	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
+	config.AllowCredentials = true
+	r.Use(cors.New(config))
+
 	// Database configuration
 	dbConfig := database.GetConfigFromEnv()
 
@@ -30,19 +39,10 @@ func main() {
 	}
 	defer db.Close()
 
-	// Initialize repositories
-	userRepo := infraDB.NewUserRepository(db)
-
-	// Initialize use cases
-	userUsecase := usecase.NewUserUsecase(userRepo)
-	healthUsecase := usecase.NewHealthUsecase()
-
-	// Initialize controllers
-	userController := controller.NewUserController(userUsecase)
-	healthController := controller.NewHealthController(healthUsecase)
-
 	// Initialize router
-	r := router.NewRouter(userController, healthController)
+	routes.HealthRoutes(r)
+	routes.StoreRoutes(db, r)
+	routes.UserRoutes(db, r)
 
 	// Start server
 	port := os.Getenv("PORT")
@@ -54,4 +54,4 @@ func main() {
 	if err := r.Run(":" + port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
-} 
+}

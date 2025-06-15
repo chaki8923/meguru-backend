@@ -33,7 +33,7 @@ COPY --from=builder /app/main .
 COPY --from=builder /go/bin/migrate /usr/local/bin/migrate
 
 # マイグレーションファイルをコピー
-COPY ./scripts/db/migrations ./migrations
+COPY ./scripts/db/migrations ./scripts/db/migrations
 
 # ★★★★★ 注意点 ★★★★★
 # .env ファイルをイメージにコピーする処理は削除しました。

@@ -24,12 +24,14 @@ services:
     depends_on:
       - db
     environment:
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_USER=meguru_user
-      - DB_PASSWORD=meguru_password
-      - DB_NAME=meguru_db
-      - DATABASE_URL=postgres://meguru_user:meguru_password@db:5432/meguru_db?sslmode=disable
+      DATABASE_URL: ${DATABASE_URL}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_USER: ${DB_USER}
+      DB_NAME: ${DB_NAME}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      PORT: ${PORT}
     volumes:
       - .:/app
     networks:
