@@ -6,16 +6,24 @@ FROM golang:1.24-alpine
 # airのインストールパスを新しい公式リポジトリに変更
 RUN go install github.com/air-verse/air@latest
 
+# migrate CLIをインストール（Postgres対応）
+RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.2
+
 # 作業ディレクトリは /app (プロジェクトルート) に固定
 WORKDIR /app
 
 # go.modとgo.sumを先にコピーして依存関係をキャッシュ
-# (go.modがルートにあるので、このパスで正しい)
 COPY go.mod go.sum ./
 RUN go mod download
 
 # プロジェクトの全ファイルをコピー
 COPY . .
+
+# 起動スクリプトに実行権限付与
+RUN chmod +x .entrypoint.sh
+
+# エントリーポイントを設定
+ENTRYPOINT ["./.entrypoint.sh"]
 
 # ポートを開放
 EXPOSE 8080

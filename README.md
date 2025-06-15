@@ -99,7 +99,8 @@ curl -X POST http://localhost:8080/api/v1/users/signup \
 # 期待される正常レスポンス:
 # {
 #   "data": {
-#     "id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+#     "id": "1",
+#     "user_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
 #     "email": "user@example.com",
 #     "name": "テストユーザー",
 #     "created_at": "2025-XX-XXTXX:XX:XX.XXXXXXXZ"
@@ -215,7 +216,8 @@ npm run dev
 ```json
 {
   "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "id": "1",
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
     "email": "user@example.com",
     "name": "ユーザー名",
     "created_at": "2025-05-30T09:22:47.546Z"
