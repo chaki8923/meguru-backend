@@ -19,6 +19,7 @@ func main() {
 		log.Println("No .env file found")
 	}
 
+    
 	// Database configuration
 	dbConfig := database.GetConfigFromEnv()
 
