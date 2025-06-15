@@ -5,7 +5,7 @@ import (
 )
 
 type CreateUserResponse struct {
-	Store *GetUserResponse `json:"store"`
+	User  *GetUserResponse `json:"user"`
 	Token string           `json:"token"`
 }
 

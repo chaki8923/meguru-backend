@@ -34,7 +34,7 @@ func NewUserUsecase(
 		userQueryService:  userQueryService,
 	}
 }
-func (u *UserUsecase) CreateUser(ctx context.Context, req *dto.CreateUserRequest) (*dto.SigninResponse, error) {
+func (u *UserUsecase) CreateUser(ctx context.Context, req *dto.CreateUserRequest) (*dto.CreateUserResponse, error) {
 	exists, err := u.userDomainService.ExistsByEmail(ctx, req.Email)
 	if err != nil {
 		return nil, err
@@ -78,17 +78,18 @@ func (u *UserUsecase) CreateUser(ctx context.Context, req *dto.CreateUserRequest
 		CreatedAt: user.CreatedAt,
 	}
 
-	return &dto.SigninResponse{
+	return &dto.CreateUserResponse{
 		Token: token,
 		User:  userResp,
 	}, nil
 }
 
-func (u *UserUsecase) Signin(ctx context.Context, req *dto.SigninRequest) (*dto.SigninResponse, error) {
+func (u *UserUsecase) Signin(ctx context.Context, req *dto.SigninRequest) (*dto.SigninUserResponse, error) {
 	user, err := u.userDomainService.FindByEmail(ctx, req.Email)
 	if err != nil {
 		return nil, err
 	}
+
 	if user == nil {
 		return nil, errors.New("invalid email or password")
 	}
@@ -111,7 +112,7 @@ func (u *UserUsecase) Signin(ctx context.Context, req *dto.SigninRequest) (*dto.
 		CreatedAt: user.CreatedAt,
 	}
 
-	return &dto.SigninResponse{
+	return &dto.SigninUserResponse{
 		Token: token,
 		User:  userResp,
 	}, nil

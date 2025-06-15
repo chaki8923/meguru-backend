@@ -1,6 +1,6 @@
 package dto
 
-type SigninResponse struct {
-	Token string           `json:"token"`
+type SigninUserResponse struct {
 	User  *GetUserResponse `json:"user"`
+	Token string           `json:"token"`
 }

@@ -49,7 +49,7 @@ func (uc *UserHandler) Signin(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": resp.Token})
+	c.JSON(http.StatusCreated, gin.H{"data": resp})
 }
 
 func (uc *UserHandler) GetUserByID(c *gin.Context) {

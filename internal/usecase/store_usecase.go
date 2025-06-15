@@ -100,6 +100,7 @@ func (u *StoreUsecase) SigninStore(ctx context.Context, req *dto.SigninStoreRequ
 	if err != nil {
 		return nil, err
 	}
+
 	if store == nil {
 		return nil, errors.New("invalid email or password")
 	}
