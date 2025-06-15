@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(userController *controller.UserController) *gin.Engine {
+func NewRouter(userController *controller.UserController, healthController *controller.HealthController) *gin.Engine {
 	r := gin.Default()
 
 	// CORS設定
@@ -18,6 +18,9 @@ func NewRouter(userController *controller.UserController) *gin.Engine {
 	config.AllowCredentials = true
 
 	r.Use(cors.New(config))
+
+	// ヘルスチェックエンドポイント
+	r.GET("/health", healthController.GetHealth)
 
 	// API routes
 	api := r.Group("/api/v1")
