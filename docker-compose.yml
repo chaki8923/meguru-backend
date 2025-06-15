@@ -12,7 +12,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      # - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - meguru-network
 
@@ -29,6 +29,7 @@ services:
       - DB_USER=meguru_user
       - DB_PASSWORD=meguru_password
       - DB_NAME=meguru_db
+      - DATABASE_URL=postgres://meguru_user:meguru_password@db:5432/meguru_db?sslmode=disable
     networks:
       - meguru-network
 
