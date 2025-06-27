@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(userController *controller.UserController, healthController *controller.HealthController) *gin.Engine {
+func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController) *gin.Engine {
 	r := gin.Default()
 
 	// CORS設定
@@ -28,6 +28,11 @@ func NewRouter(userController *controller.UserController, healthController *cont
 		users := api.Group("/users")
 		{
 			users.POST("/register", userController.CreateUser)
+		}
+		stores := api.Group("/stores")
+		{
+			stores.POST("/", storeController.CreateStore)
+			stores.PUT("/:id", storeController.UpdateStore)
 		}
 	}
 

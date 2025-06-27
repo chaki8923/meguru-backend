@@ -32,17 +32,20 @@ func main() {
 
 	// Initialize repositories
 	userRepo := infraDB.NewUserRepository(db)
+	storeRepo := infraDB.NewStoreRepository(db)
 
 	// Initialize use cases
 	userUsecase := usecase.NewUserUsecase(userRepo)
 	healthUsecase := usecase.NewHealthUsecase()
+	storeUsecase := usecase.NewStoreUsecase(storeRepo)
 
 	// Initialize controllers
 	userController := controller.NewUserController(userUsecase)
 	healthController := controller.NewHealthController(healthUsecase)
+	storeController := controller.NewStoreController(storeUsecase)
 
 	// Initialize router
-	r := router.NewRouter(userController, healthController)
+	r := router.NewRouter(userController, healthController, storeController)
 
 	// Start server
 	port := os.Getenv("PORT")
