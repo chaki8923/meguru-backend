@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/chaki-ry/meguru-backend/internal/domain/entity"
+	"meguru-backend/internal/domain/entity"
 )
 
 type StoreRepository interface {

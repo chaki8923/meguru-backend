@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/chaki-ry/meguru-backend/internal/domain/entity"
-	"github.com/chaki-ry/meguru-backend/internal/domain/repository"
+	"meguru-backend/internal/domain/entity"
+	"meguru-backend/internal/domain/repository"
 	"github.com/google/uuid"
 )
 

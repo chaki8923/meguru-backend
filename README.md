@@ -77,18 +77,14 @@ docker-compose logs -f
 docker-compose ps
 
 # アプリケーションが起動していることを確認
-curl http://localhost:8080/api/v1/users/signup \
-  -X POST \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"test123","name":"Test User"}'
-```
+curl -i http://localhost:8080/health
 
 #### 6. API テスト
 
 **ユーザー登録のテスト:**
 ```bash
 # 新規ユーザー登録
-curl -X POST http://localhost:8080/api/v1/users/signup \
+curl -X POST http://localhost:8080/api/v1/users/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -110,7 +106,7 @@ curl -X POST http://localhost:8080/api/v1/users/signup \
 **重複登録のテスト:**
 ```bash
 # 同じメールアドレスで再度登録（エラーになることを確認）
-curl -X POST http://localhost:8080/api/v1/users/signup \
+curl -X POST http://localhost:8080/api/v1/users/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -120,6 +116,48 @@ curl -X POST http://localhost:8080/api/v1/users/signup \
 
 # 期待されるエラーレスポンス:
 # {"error":"user with this email already exists"}
+```
+
+**店舗登録のテスト:**
+```bash
+# 新規店舗登録
+curl -X POST http://localhost:8080/api/v1/stores \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "テスト店舗",
+    "address": "東京都渋谷区"
+  }'
+
+# 期待される正常レスポンス:
+# {
+#   "data": {
+#     "id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+#     "name": "テスト店舗",
+#     "address": "東京都渋谷区",
+#     "created_at": "2025-XX-XXTXX:XX:XX.XXXXXXXZ"
+#   }
+# }
+```
+
+**店舗更新のテスト:**
+```bash
+# 店舗情報更新（:idは実際の店舗IDに置き換えてください）
+curl -X PUT http://localhost:8080/api/v1/stores/:id \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "更新された店舗名",
+    "address": "東京都新宿区"
+  }'
+
+# 期待される正常レスポンス:
+# {
+#   "data": {
+#     "id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+#     "name": "更新された店舗名",
+#     "address": "東京都新宿区",
+#     "updated_at": "2025-XX-XXTXX:XX:XX.XXXXXXXZ"
+#   }
+# }
 ```
 
 #### 7. トラブルシューティング
