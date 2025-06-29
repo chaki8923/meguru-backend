@@ -3,7 +3,7 @@ package controller
 import (
 	"net/http"
 
-	"github.com/chaki-ry/meguru-backend/internal/usecase"
+	"meguru-backend/internal/usecase"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
