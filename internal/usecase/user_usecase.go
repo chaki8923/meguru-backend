@@ -88,7 +88,7 @@ func (u *UserUsecase) Signin(ctx context.Context, req *dto.SigninRequest) (*dto.
 		return nil, errors.New("invalid email or password")
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
+	err = bcrypt.CompareHashAndPassword(user.PasswordHash.Bytes(), []byte(req.Password))
 	if err != nil {
 		return nil, errors.New("invalid email or password")
 	}

@@ -20,3 +20,7 @@ func NewPasswordHash(hash string) (*PasswordHash, error) {
 func (p *PasswordHash) String() string {
 	return p.value
 }
+
+func (p *PasswordHash) Bytes() []byte {
+	return []byte(p.value)
+}
