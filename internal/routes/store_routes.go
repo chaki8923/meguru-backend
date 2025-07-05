@@ -15,7 +15,7 @@ import (
 
 func StoreRoutes(db *sql.DB, router *gin.Engine) *gin.Engine {
 	storeRepo := repository.NewStoreRepository(db)
-	storeDomainService := domain_service.NewStoreService(storeRepo)
+	storeDomainService := domain_service.NewStoreDomainService(storeRepo)
 	storeQueryService := query_service.NewStoreQueryService(db)
 	storeUsecase := usecase.NewStoreUsecase(storeRepo, storeDomainService, storeQueryService)
 	storeHandler := handler.NewStoreHandler(storeUsecase)

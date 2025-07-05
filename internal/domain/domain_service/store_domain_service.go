@@ -11,7 +11,7 @@ type StoreDomainService struct {
 	storeRepo repository.StoreRepository
 }
 
-func NewStoreService(storeRepo repository.StoreRepository) *StoreDomainService {
+func NewStoreDomainService(storeRepo repository.StoreRepository) *StoreDomainService {
 	return &StoreDomainService{
 		storeRepo: storeRepo,
 	}
