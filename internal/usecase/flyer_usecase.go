@@ -15,48 +15,18 @@ import (
 
 	"meguru-backend/internal/domain/entity"
 	"meguru-backend/internal/domain/repository"
+	"meguru-backend/internal/dto"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
 )
 
-// JSON structure for Gemini response
-type FlyerData struct {
-	StoreInfo      Store       `json:"store"`
-	CampaignInfo   Campaign    `json:"campaign"`
-	FlyerItemsInfo []FlyerItem `json:"flyer_items"`
-}
-
-type Store struct {
-	Name    string `json:"name"`
-	Address string `json:"address"`
-}
-
-type Campaign struct {
-	Name      string `json:"name"`
-	StartDate string `json:"start_date"`
-	EndDate   string `json:"end_date"`
-}
-
-type FlyerItem struct {
-	Product             Product `json:"product"`
-	PriceExcludingTax   int     `json:"price_excluding_tax"`
-	PriceIncludingTax   int     `json:"price_including_tax"`
-	Unit                string  `json:"unit"`
-	RestrictionNote     string  `json:"restriction_note"`
-}
-
-type Product struct {
-	Name     string `json:"name"`
-	Category string `json:"category"`
-}
-
 // Response structure to be sent to the controller
 type FlyerResponse struct {
-	ID         string      `json:"id"`
-	ImageData  string      `json:"image_data"` // base64 encoded image
-	FlyerData  FlyerData   `json:"flyer_data"`
-	CreatedAt  time.Time   `json:"created_at"`
+	ID         string         `json:"id"`
+	ImageData  string         `json:"image_data"` // base64 encoded image
+	FlyerData  *dto.FlyerData `json:"flyer_data"`
+	CreatedAt  time.Time      `json:"created_at"`
 }
 
 type FlyerUsecase struct {
@@ -161,17 +131,17 @@ JSON構造:
 
 	log.Printf("Generated JSON: %s", jsonString)
 
-	var flyerData FlyerData
+	var flyerData dto.FlyerData
 	if err := json.Unmarshal([]byte(jsonString), &flyerData); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
 
-	// 4. Convert FlyerData to domain entities and save
+	// 4. Save data to the database
 	flyerToSave := &entity.Flyer{
 		ImageData: imageData,
 	}
 
-	savedFlyer, err := u.flyerRepository.SaveFlyer(ctx, flyerToSave)
+	savedFlyer, err := u.flyerRepository.SaveFlyer(ctx, flyerToSave, &flyerData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save flyer data: %w", err)
 	}
@@ -180,9 +150,10 @@ JSON構造:
 	response := &FlyerResponse{
 		ID:         savedFlyer.ID.String(),
 		ImageData:  base64.StdEncoding.EncodeToString(savedFlyer.ImageData),
-		FlyerData:  flyerData, // Keep sending the parsed data back for now
+		FlyerData:  &flyerData,
 		CreatedAt:  savedFlyer.CreatedAt,
 	}
 
 	return response, nil
 }
+

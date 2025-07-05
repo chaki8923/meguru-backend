@@ -1,7 +1,0 @@
-CREATE TABLE IF NOT EXISTS stores (
-    id UUID PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    address VARCHAR(255) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL
-);
