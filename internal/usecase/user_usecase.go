@@ -70,13 +70,7 @@ func (u *UserUsecase) CreateUser(ctx context.Context, req *dto.CreateUserRequest
 		return nil, err
 	}
 
-	userResp := &dto.GetUserResponse{
-		ID:        user.ID,
-		UserID:    user.UserID.String(),
-		Email:     user.Email.String(),
-		Name:      user.Name.String(),
-		CreatedAt: user.CreatedAt,
-	}
+	userResp := dto.ConvertDomainModelToGetUserResponse(user)
 
 	return &dto.CreateUserResponse{
 		Token: token,
@@ -104,13 +98,7 @@ func (u *UserUsecase) Signin(ctx context.Context, req *dto.SigninRequest) (*dto.
 		return nil, err
 	}
 
-	userResp := &dto.GetUserResponse{
-		ID:        user.ID,
-		UserID:    user.UserID.String(),
-		Email:     user.Email.String(),
-		Name:      user.Name.String(),
-		CreatedAt: user.CreatedAt,
-	}
+	userResp := dto.ConvertDomainModelToGetUserResponse(user)
 
 	return &dto.SigninUserResponse{
 		Token: token,
@@ -132,13 +120,5 @@ func (u *UserUsecase) GetUserByID(ctx context.Context, userID string) (*dto.GetU
 		return nil, nil
 	}
 
-	resp := &dto.GetUserResponse{
-		ID:        user.ID,
-		UserID:    user.UserID.String(),
-		Email:     user.Email,
-		Name:      user.Name,
-		CreatedAt: user.CreatedAt,
-	}
-
-	return resp, nil
+	return dto.ConvertQueryModelToGetUserResponse(user), nil
 }
