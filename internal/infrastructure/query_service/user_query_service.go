@@ -3,6 +3,7 @@ package query_service
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"meguru-backend/internal/usecase/query_model"
 	"meguru-backend/internal/usecase/query_service"
@@ -29,7 +30,7 @@ func (s *userQueryService) GetUserByUserID(ctx context.Context, userID uuid.UUID
 	err := s.db.QueryRowContext(ctx, query, userID.String()).Scan(
 		&user.ID, &user.UserID, &user.Email, &user.Name, &user.CreatedAt)
 	if err == sql.ErrNoRows {
-		return nil, nil
+		return nil, fmt.Errorf("user not found")
 	}
 	if err != nil {
 		return nil, err
