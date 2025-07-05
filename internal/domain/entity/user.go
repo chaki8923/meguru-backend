@@ -11,7 +11,7 @@ type User struct {
 	UserID       user_vo.UUID
 	Name         user_vo.UserName
 	Email        user_vo.Email
-	PasswordHash string
+	PasswordHash user_vo.PasswordHash
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -41,12 +41,17 @@ func NewUser(
 		return nil, err
 	}
 
+	passwordHashVO, err := user_vo.NewPasswordHash(passwordHash)
+	if err != nil {
+		return nil, err
+	}
+
 	return &User{
 		ID:           id,
 		UserID:       *uuidVO,
 		Name:         *nameVO,
 		Email:        *emailVO,
-		PasswordHash: passwordHash,
+		PasswordHash: *passwordHashVO,
 		CreatedAt:    createdAt,
 		UpdatedAt:    updatedAt,
 	}, nil
