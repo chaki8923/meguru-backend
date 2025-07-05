@@ -100,7 +100,7 @@ func (r *storeRepository) FindByEmail(ctx context.Context, email string) (*entit
 		return nil, err
 	}
 
-	storeIDVO, err := store_vo.NewUuid(storeIDStr)
+	storeIDVO, err := store_vo.NewUUID(storeIDStr)
 	if err != nil {
 		return nil, err
 	}

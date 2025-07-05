@@ -6,22 +6,22 @@ import (
 	"github.com/google/uuid"
 )
 
-type Uuid struct {
+type UUID struct {
 	value uuid.UUID
 }
 
-func NewUuid(value string) (*Uuid, error) {
+func NewUUID(value string) (*UUID, error) {
 	parsed, err := uuid.Parse(value)
 	if err != nil {
 		return nil, errors.New("invalid uuid format")
 	}
-	return &Uuid{value: parsed}, nil
+	return &UUID{value: parsed}, nil
 }
 
-func (u *Uuid) String() string {
+func (u *UUID) String() string {
 	return u.value.String()
 }
 
-func (u *Uuid) Value() uuid.UUID {
+func (u *UUID) Value() uuid.UUID {
 	return u.value
 }

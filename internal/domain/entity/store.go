@@ -8,7 +8,7 @@ import (
 
 type Store struct {
 	ID           int64
-	StoreID      store_vo.Uuid
+	StoreID      store_vo.UUID
 	Name         string
 	Email        store_vo.Email
 	PasswordHash string
@@ -35,7 +35,7 @@ func NewStore(
 	createdAt time.Time,
 	updatedAt time.Time,
 ) (*Store, error) {
-	uuidVO, err := store_vo.NewUuid(storeID)
+	uuidVO, err := store_vo.NewUUID(storeID)
 	if err != nil {
 		return nil, err
 	}

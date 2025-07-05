@@ -66,7 +66,7 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*entity.
 		return nil, err
 	}
 
-	userIDVO, err := user_vo.NewUuid(userID)
+	userIDVO, err := user_vo.NewUUID(userID)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Use
 		return nil, err
 	}
 
-	userIDVO, err := user_vo.NewUuid(userID)
+	userIDVO, err := user_vo.NewUUID(userID)
 	if err != nil {
 		return nil, err
 	}

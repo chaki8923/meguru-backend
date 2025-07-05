@@ -8,7 +8,7 @@ import (
 
 type User struct {
 	ID           int64
-	UserID       user_vo.Uuid
+	UserID       user_vo.UUID
 	Name         user_vo.UserName
 	Email        user_vo.Email
 	PasswordHash string
@@ -26,7 +26,7 @@ func NewUser(
 	updatedAt time.Time,
 ) (*User, error) {
 
-	uuidVO, err := user_vo.NewUuid(userID)
+	uuidVO, err := user_vo.NewUUID(userID)
 	if err != nil {
 		return nil, err
 	}
