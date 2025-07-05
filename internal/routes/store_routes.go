@@ -20,9 +20,11 @@ func StoreRoutes(db *sql.DB, router *gin.Engine) *gin.Engine {
 	storeUsecase := usecase.NewStoreUsecase(storeRepo, storeDomainService, storeQueryService)
 	storeHandler := handler.NewStoreHandler(storeUsecase)
 
-	router.Group("/api/v1").Group("/stores").POST("/signup", storeHandler.CreateStore)
-	router.Group("/api/v1").Group("/stores").POST("/signin", storeHandler.SigninStore)
-	router.Group("/api/v1").Group("/stores").GET("/:store_id", middleware.ValidateJWTMiddleware(), storeHandler.GetStoreByID)
+	storeRouterGroup := router.Group("/api/v1").Group("/stores")
+
+	storeRouterGroup.POST("/signup", storeHandler.CreateStore)
+	storeRouterGroup.POST("/signin", storeHandler.SigninStore)
+	storeRouterGroup.GET("/:store_id", middleware.ValidateJWTMiddleware(), storeHandler.GetStoreByID)
 
 	return router
 }

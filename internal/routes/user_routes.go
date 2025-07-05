@@ -20,9 +20,11 @@ func UserRoutes(db *sql.DB, router *gin.Engine) *gin.Engine {
 	userUsecase := usecase.NewUserUsecase(userRepo, userDomainService, userQueryService)
 	userHandler := handler.NewUserHandler(userUsecase)
 
-	router.Group("/api/v1").Group("/users").POST("/signup", userHandler.CreateUser)
-	router.Group("/api/v1").Group("/users").POST("/signin", userHandler.Signin)
-	router.Group("/api/v1").Group("/users").GET("/:user_id", middleware.ValidateJWTMiddleware(), userHandler.GetUserByID)
+	userRouterGroup := router.Group("/api/v1").Group("/users")
+
+	userRouterGroup.POST("/signup", userHandler.CreateUser)
+	userRouterGroup.POST("/signin", userHandler.Signin)
+	userRouterGroup.GET("/:user_id", middleware.ValidateJWTMiddleware(), userHandler.GetUserByID)
 
 	return router
 }
