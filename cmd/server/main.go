@@ -6,6 +6,7 @@ import (
 
 	infraDB "meguru-backend/internal/infrastructure/database"
 	"meguru-backend/internal/infrastructure/router"
+	"meguru-backend/internal/infrastructure/webpush"
 	"meguru-backend/internal/interface/controller"
 	"meguru-backend/internal/usecase"
 	"meguru-backend/pkg/database"
@@ -33,19 +34,25 @@ func main() {
 	// Initialize repositories
 	userRepo := infraDB.NewUserRepository(db)
 	storeRepo := infraDB.NewStoreRepository(db)
+	pushSubscriptionRepo := infraDB.NewPushSubscriptionRepository(db)
+
+	// Initialize webpush service
+	webPushService := webpush.NewWebPushService()
 
 	// Initialize use cases
 	userUsecase := usecase.NewUserUsecase(userRepo)
 	healthUsecase := usecase.NewHealthUsecase()
 	storeUsecase := usecase.NewStoreUsecase(storeRepo)
+	pushSubscriptionUsecase := usecase.NewPushSubscriptionUsecase(pushSubscriptionRepo, webPushService)
 
 	// Initialize controllers
 	userController := controller.NewUserController(userUsecase)
 	healthController := controller.NewHealthController(healthUsecase)
 	storeController := controller.NewStoreController(storeUsecase)
+	pushSubscriptionController := controller.NewPushSubscriptionController(pushSubscriptionUsecase)
 
 	// Initialize router
-	r := router.NewRouter(userController, healthController, storeController)
+	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController)
 
 	// Start server
 	port := os.Getenv("PORT")
