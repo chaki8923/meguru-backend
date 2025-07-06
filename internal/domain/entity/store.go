@@ -9,7 +9,9 @@ import (
 type Store struct {
 	ID        uuid.UUID `json:"id"`
 	Name      string    `json:"name"`
-	Address   string    `json:"address"`
+	Prefecture string    `json:"prefecture"`
+	City       string    `json:"city"`
+	Street     string    `json:"street"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

@@ -9,7 +9,9 @@ type FlyerData struct {
 
 type Store struct {
 	Name    string `json:"name"`
-	Address string `json:"address"`
+	Prefecture string `json:"prefecture"`
+	City       string `json:"city"`
+	Street     string `json:"street"`
 }
 
 type Campaign struct {
