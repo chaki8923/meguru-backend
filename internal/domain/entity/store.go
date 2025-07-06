@@ -22,7 +22,6 @@ type Store struct {
 }
 
 func NewStore(
-	id int64,
 	storeID string,
 	name string,
 	email string,
@@ -32,8 +31,6 @@ func NewStore(
 	prefecture string,
 	city string,
 	street string,
-	createdAt time.Time,
-	updatedAt time.Time,
 ) (*Store, error) {
 	uuidVO, err := store_vo.NewUUID(storeID)
 	if err != nil {
@@ -65,7 +62,6 @@ func NewStore(
 	}
 
 	return &Store{
-		ID:           id,
 		StoreID:      *uuidVO,
 		Name:         name,
 		Email:        *emailVO,
@@ -75,7 +71,5 @@ func NewStore(
 		Prefecture:   *prefectureVO,
 		City:         *cityVO,
 		Street:       *streetVO,
-		CreatedAt:    createdAt,
-		UpdatedAt:    updatedAt,
 	}, nil
 }

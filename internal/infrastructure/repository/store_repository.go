@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"meguru-backend/internal/domain/entity"
 	"meguru-backend/internal/domain/repository"
@@ -53,8 +54,8 @@ func (r *storeRepository) Create(ctx context.Context, store *entity.Store) error
 		store.Prefecture,
 		store.City,
 		store.Street,
-		store.CreatedAt,
-		store.UpdatedAt,
+		time.Now(),
+		time.Now(),
 	).Scan(&store.ID)
 
 	if err != nil {

@@ -15,6 +15,5 @@ func MapToGetStoresResponse(s *query_model.Stores) *GetStoreResponse {
 		Prefecture:  s.Prefecture,
 		City:        s.City,
 		Street:      s.Street,
-		CreatedAt:   s.CreatedAt,
 	}
 }

@@ -3,7 +3,6 @@ package usecase
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -49,7 +48,6 @@ func (u *StoreUsecase) CreateStore(ctx context.Context, req *dto.CreateStoreRequ
 	}
 
 	store, err := entity.NewStore(
-		0, // IDはDB側で生成されるため0でOK
 		uuid.New().String(),
 		req.Name,
 		req.Email,
@@ -59,8 +57,6 @@ func (u *StoreUsecase) CreateStore(ctx context.Context, req *dto.CreateStoreRequ
 		req.Prefecture,
 		req.City,
 		req.Street,
-		time.Now(),
-		time.Now(),
 	)
 	if err != nil {
 		return nil, err
@@ -85,7 +81,6 @@ func (u *StoreUsecase) CreateStore(ctx context.Context, req *dto.CreateStoreRequ
 		Prefecture:  store.Prefecture.Value(),
 		City:        store.City.Value(),
 		Street:      store.Street.Value(),
-		CreatedAt:   store.CreatedAt,
 	}
 
 	return &dto.CreateStoreResponse{
@@ -124,7 +119,6 @@ func (u *StoreUsecase) SigninStore(ctx context.Context, req *dto.SigninStoreRequ
 		Prefecture:  store.Prefecture.Value(),
 		City:        store.City.Value(),
 		Street:      store.Street.Value(),
-		CreatedAt:   store.CreatedAt,
 	}
 
 	return &dto.SigninStoreResponse{
@@ -157,7 +151,6 @@ func (u *StoreUsecase) GetStoreByID(ctx context.Context, storeID string) (*dto.G
 		Prefecture:  store.Prefecture,
 		City:        store.City,
 		Street:      store.Street,
-		CreatedAt:   store.CreatedAt,
 	}
 
 	return resp, nil
