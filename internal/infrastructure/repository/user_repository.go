@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"meguru-backend/internal/domain/entity"
 	repository_interface "meguru-backend/internal/domain/repository"
@@ -30,11 +31,18 @@ func (r *userRepository) Create(ctx context.Context, user *entity.User) error {
 		user.Name.String(),
 		user.Email.String(),
 		user.PasswordHash,
-		user.CreatedAt,
-		user.UpdatedAt,
+		time.Now(),
+		time.Now(),
 	).Scan(&user.ID)
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	user.CreatedAt = time.Now()
+	user.UpdatedAt = time.Now()
+
+	return nil
 }
 
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*entity.User, error) {

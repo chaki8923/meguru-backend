@@ -3,7 +3,6 @@ package usecase
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -49,13 +48,10 @@ func (u *UserUsecase) CreateUser(ctx context.Context, req *dto.CreateUserRequest
 	}
 
 	user, err := entity.NewUser(
-		0,
 		uuid.New().String(),
 		req.Name,
 		req.Email,
 		string(hashedPassword),
-		time.Now(),
-		time.Now(),
 	)
 	if err != nil {
 		return nil, err

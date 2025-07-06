@@ -17,15 +17,11 @@ type User struct {
 }
 
 func NewUser(
-	id int64,
 	userID string,
 	name string,
 	email string,
 	passwordHash string,
-	createdAt time.Time,
-	updatedAt time.Time,
 ) (*User, error) {
-
 	uuidVO, err := user_vo.NewUUID(userID)
 	if err != nil {
 		return nil, err
@@ -47,12 +43,9 @@ func NewUser(
 	}
 
 	return &User{
-		ID:           id,
 		UserID:       *uuidVO,
 		Name:         *nameVO,
 		Email:        *emailVO,
 		PasswordHash: *passwordHashVO,
-		CreatedAt:    createdAt,
-		UpdatedAt:    updatedAt,
 	}, nil
 }
