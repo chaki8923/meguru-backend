@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/google/uuid"
-
 	"meguru-backend/internal/domain/entity"
 	repository_interface "meguru-backend/internal/domain/repository"
 	user_vo "meguru-backend/internal/domain/value_object/user"
@@ -90,33 +88,6 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*entity.
 		return nil, err
 	}
 	user.Name = *nameVO
-
-	return user, nil
-}
-
-func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.User, error) {
-	query := `
-		SELECT id, user_id, email, password_hash, name, created_at, updated_at
-		FROM users
-		WHERE id = $1`
-
-	user := &entity.User{}
-	var userID string
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&user.ID, &userID, &user.Email, &user.PasswordHash, &user.Name,
-		&user.CreatedAt, &user.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	userIDVO, err := user_vo.NewUUID(userID)
-	if err != nil {
-		return nil, err
-	}
-	user.UserID = *userIDVO
 
 	return user, nil
 }
