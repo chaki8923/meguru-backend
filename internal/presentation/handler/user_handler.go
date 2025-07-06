@@ -55,7 +55,10 @@ func (uc *UserHandler) Signin(c *gin.Context) {
 		return
 	}
 
-	responses.HTTP201(c, gin.H{"data": resp})
+	responses.HTTP201(c, gin.H{
+		"token": resp.Token,
+		"user":  resp.User,
+	})
 }
 
 func (uc *UserHandler) GetUserByID(c *gin.Context) {
