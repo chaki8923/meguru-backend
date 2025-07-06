@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"meguru-backend/internal/domain/entity"
 	"meguru-backend/internal/domain/repository"
@@ -57,7 +58,9 @@ func (r *storeRepository) Create(ctx context.Context, store *entity.Store) error
 	).Scan(&store.ID)
 
 	if err != nil {
-		tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return fmt.Errorf("insert error: %w, rollback error: %v", err, rbErr)
+		}
 		return err
 	}
 
