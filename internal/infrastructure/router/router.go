@@ -32,6 +32,7 @@ func NewRouter(userController *controller.UserController, healthController *cont
 		stores := api.Group("/stores")
 		{
 			stores.POST("", storeController.CreateStore)
+			stores.GET("", storeController.GetAllStores)
 			stores.PUT("/:id", storeController.UpdateStore)
 		}
 		notifications := api.Group("/notifications")
