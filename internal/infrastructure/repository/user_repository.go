@@ -48,13 +48,14 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*entity.
 	user := &entity.User{}
 	var userID string
 	var emailStr string
+	var passwordHashStr string
 	var nameStr string
 
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
 		&user.ID,
 		&userID,
 		&emailStr,
-		&user.PasswordHash,
+		&passwordHashStr,
 		&nameStr,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -65,6 +66,12 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*entity.
 	if err != nil {
 		return nil, err
 	}
+
+	passwordHashVO, err := user_vo.NewPasswordHash(passwordHashStr)
+	if err != nil {
+		return nil, err
+	}
+	user.PasswordHash = *passwordHashVO
 
 	userIDVO, err := user_vo.NewUUID(userID)
 	if err != nil {

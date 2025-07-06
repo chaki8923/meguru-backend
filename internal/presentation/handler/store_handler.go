@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"meguru-backend/internal/presentation/responses"
 	"meguru-backend/internal/usecase"
 	dto "meguru-backend/internal/usecase/dto/stores"
 )
@@ -45,7 +46,12 @@ func (uc *StoreHandler) SigninStore(c *gin.Context) {
 
 	resp, err := uc.storeUsecase.SigninStore(c.Request.Context(), &req)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		if err.Error() == "invalid email or password" {
+			responses.HTTP401(c, gin.H{"error": err.Error()})
+			return
+		}
+
+		responses.HTTP500(c, gin.H{"error": "internal server error"})
 		return
 	}
 

@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"meguru-backend/internal/presentation/responses"
 	"meguru-backend/internal/usecase"
 	dto "meguru-backend/internal/usecase/dto/users"
 )
@@ -45,11 +46,16 @@ func (uc *UserHandler) Signin(c *gin.Context) {
 
 	resp, err := uc.userUsecase.Signin(c.Request.Context(), &req)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		if err.Error() == "invalid email or password" {
+			responses.HTTP401(c, gin.H{"error": err.Error()})
+			return
+		}
+
+		responses.HTTP500(c, gin.H{"error": "internal server error"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"data": resp})
+	responses.HTTP201(c, gin.H{"data": resp})
 }
 
 func (uc *UserHandler) GetUserByID(c *gin.Context) {
