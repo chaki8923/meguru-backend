@@ -24,17 +24,22 @@ func (uc *StoreHandler) CreateStore(c *gin.Context) {
 	var req dto.CreateStoreRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		responses.HTTP400(c, gin.H{"error": err.Error()})
 		return
 	}
 
 	resp, err := uc.storeUsecase.CreateStore(c.Request.Context(), &req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err.Error() == "store with this email already exists" {
+			responses.HTTP409(c, gin.H{"error": err.Error()}) // 409 Conflict を返す例
+			return
+		}
+
+		responses.HTTP500(c, gin.H{"error": "internal server error"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"data": resp})
+	responses.HTTP201(c, gin.H{"data": resp})
 }
 
 func (uc *StoreHandler) SigninStore(c *gin.Context) {

@@ -92,7 +92,6 @@ func (u *StoreUsecase) CreateStore(ctx context.Context, req *dto.CreateStoreRequ
 		Token: token,
 		Store: resp,
 	}, nil
-
 }
 
 func (u *StoreUsecase) SigninStore(ctx context.Context, req *dto.SigninStoreRequest) (*dto.SigninStoreResponse, error) {

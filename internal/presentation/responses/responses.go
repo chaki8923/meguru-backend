@@ -28,6 +28,10 @@ func HTTP404(c *gin.Context, obj any) {
 	c.IndentedJSON(404, obj)
 }
 
+func HTTP409(c *gin.Context, obj any) {
+	c.IndentedJSON(409, obj)
+}
+
 func HTTP500(c *gin.Context, obj any) {
 	c.IndentedJSON(500, obj)
 }
