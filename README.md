@@ -190,6 +190,14 @@ docker-compose down -v
 docker-compose up -d
 ```
 
+**データベースの全データ削除:**
+
+開発中にデータベースのデータをすべて削除したい場合は、以下のコマンドを`meguru-backend`ディレクトリで実行してください。このコマンドは、テーブル構造は残したまま、すべてのデータを削除します。
+
+```bash
+docker-compose exec db psql -U meguru_user -d meguru_db -c "DO \$\$ BEGIN EXECUTE (SELECT 'TRUNCATE TABLE ' || string_agg(quote_ident(tablename), ', ') || ' RESTART IDENTITY CASCADE' FROM pg_tables WHERE schemaname = 'public'); END \$\$"
+```
+
 #### 8. ローカル開発（Docker を使わない場合）
 
 Docker を使わずにローカルでGoアプリケーションを開発したい場合：

@@ -42,6 +42,7 @@ func NewRouter(userController *controller.UserController, healthController *cont
 		flyer := api.Group("/flyer")
 		{
 			flyer.POST("/upload", flyerController.UploadFlyer)
+			flyer.GET("/:store_id", flyerController.GetFlyerByStoreID)
 		}
 	}
 

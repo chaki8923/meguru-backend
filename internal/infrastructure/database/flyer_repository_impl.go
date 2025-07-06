@@ -98,3 +98,91 @@ func (r *FlyerRepositoryImpl) SaveFlyer(ctx context.Context, flyer *entity.Flyer
 	return flyer, nil
 }
 
+func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID string) (*entity.Flyer, *dto.FlyerData, error) {
+	query := `
+    SELECT
+        f.id, f.image_data, f.created_at, f.updated_at,
+        s.name, s.address,
+        c.name, c.start_date, c.end_date,
+        p.name, p.category,
+        fi.price_excluding_tax, fi.price_including_tax, fi.unit, fi.restriction_note
+    FROM flyers f
+    JOIN campaigns c ON f.id = c.flyer_id
+    JOIN campaign_stores cs ON c.id = cs.campaign_id
+    JOIN stores s ON cs.store_id = s.id
+    LEFT JOIN flyer_items fi ON c.id = fi.campaign_id
+    LEFT JOIN products p ON fi.product_id = p.id
+    WHERE s.id = $1
+    ORDER BY f.created_at DESC, p.name
+    `
+
+	rows, err := r.db.QueryContext(ctx, query, storeID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+	defer rows.Close()
+
+	var flyer *entity.Flyer
+	flyerData := &dto.FlyerData{}
+	var items []dto.FlyerItem
+
+	for rows.Next() {
+		var flyerID uuid.UUID
+		var imageData []byte
+		var createdAt, updatedAt time.Time
+		var storeName, storeAddress string
+		var campaignName string
+		var startDate, endDate time.Time
+		var productName, productCategory, unit, restrictionNote sql.NullString
+		var priceExcludingTax, priceIncludingTax sql.NullInt64
+
+		if err := rows.Scan(
+			&flyerID, &imageData, &createdAt, &updatedAt,
+			&storeName, &storeAddress,
+			&campaignName, &startDate, &endDate,
+			&productName, &productCategory,
+			&priceExcludingTax, &priceIncludingTax, &unit, &restrictionNote,
+		); err != nil {
+			return nil, nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		if flyer == nil {
+			flyer = &entity.Flyer{
+				ID:        flyerID,
+				ImageData: imageData,
+				CreatedAt: createdAt,
+				UpdatedAt: updatedAt,
+			}
+			flyerData.StoreInfo.Name = storeName
+			flyerData.StoreInfo.Address = storeAddress
+			flyerData.CampaignInfo.Name = campaignName
+			flyerData.CampaignInfo.StartDate = startDate.Format("2006-01-02")
+			flyerData.CampaignInfo.EndDate = endDate.Format("2006-01-02")
+		}
+
+		if productName.Valid {
+			items = append(items, dto.FlyerItem{
+				Product: dto.Product{
+					Name:     productName.String,
+					Category: productCategory.String,
+				},
+				PriceExcludingTax: int(priceExcludingTax.Int64),
+				PriceIncludingTax: int(priceIncludingTax.Int64),
+				Unit:              unit.String,
+				RestrictionNote:   restrictionNote.String,
+			})
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	if flyer == nil {
+		return nil, nil, nil // No flyer found
+	}
+
+	flyerData.FlyerItemsInfo = items
+	return flyer, flyerData, nil
+}
+

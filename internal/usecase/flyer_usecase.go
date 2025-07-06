@@ -157,3 +157,22 @@ JSON構造:
 	return response, nil
 }
 
+func (u *FlyerUsecase) GetFlyerByStoreID(ctx context.Context, storeID string) (*FlyerResponse, error) {
+	flyer, flyerData, err := u.flyerRepository.GetFlyerByStoreID(ctx, storeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get flyer from repository: %w", err)
+	}
+	if flyer == nil {
+		return nil, nil // No flyer found
+	}
+
+	response := &FlyerResponse{
+		ID:        flyer.ID.String(),
+		ImageData: base64.StdEncoding.EncodeToString(flyer.ImageData),
+		FlyerData: flyerData,
+		CreatedAt: flyer.CreatedAt,
+	}
+
+	return response, nil
+}
+
