@@ -1,13 +1,11 @@
 package handler
 
 import (
-	"net/http"
-
-	"github.com/gin-gonic/gin"
-
 	"meguru-backend/internal/presentation/responses"
 	"meguru-backend/internal/usecase"
 	dto "meguru-backend/internal/usecase/dto/users"
+
+	"github.com/gin-gonic/gin"
 )
 
 type UserHandler struct {
@@ -24,23 +22,23 @@ func (uc *UserHandler) CreateUser(c *gin.Context) {
 	var req dto.CreateUserRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		responses.HTTP400(c, gin.H{"error": err.Error()})
 		return
 	}
 
 	resp, err := uc.userUsecase.CreateUser(c.Request.Context(), &req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		responses.HTTP400(c, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"data": resp})
+	responses.HTTP201(c, gin.H{"data": resp})
 }
 
 func (uc *UserHandler) Signin(c *gin.Context) {
 	var req dto.SigninRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		responses.HTTP400(c, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -66,13 +64,13 @@ func (uc *UserHandler) GetUserByID(c *gin.Context) {
 
 	user, err := uc.userUsecase.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		responses.HTTP500(c, gin.H{"error": err.Error()})
 		return
 	}
 	if user == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		responses.HTTP404(c, gin.H{"error": "user not found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": user})
+	responses.HTTP200(c, gin.H{"data": user})
 }

@@ -1,13 +1,11 @@
 package handler
 
 import (
-	"net/http"
-
-	"github.com/gin-gonic/gin"
-
 	"meguru-backend/internal/presentation/responses"
 	"meguru-backend/internal/usecase"
 	dto "meguru-backend/internal/usecase/dto/stores"
+
+	"github.com/gin-gonic/gin"
 )
 
 type StoreHandler struct {
@@ -31,7 +29,7 @@ func (uc *StoreHandler) CreateStore(c *gin.Context) {
 	resp, err := uc.storeUsecase.CreateStore(c.Request.Context(), &req)
 	if err != nil {
 		if err.Error() == "store with this email already exists" {
-			responses.HTTP409(c, gin.H{"error": err.Error()}) // 409 Conflict を返す例
+			responses.HTTP409(c, gin.H{"error": err.Error()})
 			return
 		}
 
@@ -45,7 +43,7 @@ func (uc *StoreHandler) CreateStore(c *gin.Context) {
 func (uc *StoreHandler) SigninStore(c *gin.Context) {
 	var req dto.SigninStoreRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		responses.HTTP400(c, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -60,7 +58,7 @@ func (uc *StoreHandler) SigninStore(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": resp})
+	responses.HTTP200(c, gin.H{"data": resp})
 }
 
 func (uc *StoreHandler) GetStoreByID(c *gin.Context) {
@@ -68,14 +66,14 @@ func (uc *StoreHandler) GetStoreByID(c *gin.Context) {
 
 	store, err := uc.storeUsecase.GetStoreByID(c.Request.Context(), storeID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		responses.HTTP500(c, gin.H{"error": err.Error()})
 		return
 	}
 
 	if store == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "store not found"})
+		responses.HTTP404(c, gin.H{"error": "store not found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": store})
+	responses.HTTP200(c, gin.H{"data": store})
 }
