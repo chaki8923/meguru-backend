@@ -3,6 +3,7 @@ package webpush
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 
@@ -46,6 +47,8 @@ func (s *webPushService) SendNotification(ctx context.Context, subscription *ent
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 201 {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("Failed to send notification: status code %d, body: %s", resp.StatusCode, string(body))
 		return fmt.Errorf("failed to send notification: status code %d", resp.StatusCode)
 	}
 

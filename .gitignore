@@ -1,0 +1,21 @@
+# Binaries
+/cmd/server/main
+/cmd/server/tmp/main
+/tmp/main
+
+# Log files
+*.log
+tmp/air_errors.log
+
+# Environment files
+.env
+
+# Temporary files
+tmp/
+
+# IDE files
+.idea/
+.vscode/
+
+# OS-generated files
+.DS_Store

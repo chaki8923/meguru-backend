@@ -35,6 +35,7 @@ func main() {
 	userRepo := infraDB.NewUserRepository(db)
 	storeRepo := infraDB.NewStoreRepository(db)
 	pushSubscriptionRepo := infraDB.NewPushSubscriptionRepository(db)
+	flyerRepo := infraDB.NewFlyerRepository(db)
 
 	// Initialize webpush service
 	webPushService := webpush.NewWebPushService()
@@ -44,15 +45,17 @@ func main() {
 	healthUsecase := usecase.NewHealthUsecase()
 	storeUsecase := usecase.NewStoreUsecase(storeRepo)
 	pushSubscriptionUsecase := usecase.NewPushSubscriptionUsecase(pushSubscriptionRepo, webPushService)
+	flyerUsecase := usecase.NewFlyerUsecase(flyerRepo)
 
 	// Initialize controllers
 	userController := controller.NewUserController(userUsecase)
 	healthController := controller.NewHealthController(healthUsecase)
 	storeController := controller.NewStoreController(storeUsecase)
 	pushSubscriptionController := controller.NewPushSubscriptionController(pushSubscriptionUsecase)
+	flyerController := controller.NewFlyerController(flyerUsecase)
 
 	// Initialize router
-	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController)
+	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController)
 
 	// Start server
 	port := os.Getenv("PORT")
