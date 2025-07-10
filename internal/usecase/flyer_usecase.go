@@ -24,6 +24,7 @@ import (
 // Response structure to be sent to the controller
 type FlyerResponse struct {
 	ID         string         `json:"id"`
+	StoreID    string         `json:"store_id"`
 	ImageData  string         `json:"image_data"` // base64 encoded image
 	FlyerData  *dto.FlyerData `json:"flyer_data"`
 	CreatedAt  time.Time      `json:"created_at"`
@@ -76,7 +77,9 @@ JSON構造:
 {
   "store": {
     "name": "店舗名",
-    "address": "住所"
+    "prefecture": "都道府県",
+    "city": "市区町村",
+    "street": "番地"
   },
   "campaign": {
     "name": "キャンペーン名 (例: スーパー火曜祭)",
@@ -141,7 +144,7 @@ JSON構造:
 		ImageData: imageData,
 	}
 
-	savedFlyer, err := u.flyerRepository.SaveFlyer(ctx, flyerToSave, &flyerData)
+	savedFlyer, storeID, err := u.flyerRepository.SaveFlyer(ctx, flyerToSave, &flyerData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save flyer data: %w", err)
 	}
@@ -149,6 +152,7 @@ JSON構造:
 	// 5. Construct and return the response
 	response := &FlyerResponse{
 		ID:         savedFlyer.ID.String(),
+		StoreID:    storeID.String(),
 		ImageData:  base64.StdEncoding.EncodeToString(savedFlyer.ImageData),
 		FlyerData:  &flyerData,
 		CreatedAt:  savedFlyer.CreatedAt,

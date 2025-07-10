@@ -57,3 +57,13 @@ func (sc *StoreController) UpdateStore(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"data": store})
 }
+
+func (sc *StoreController) GetAllStores(c *gin.Context) {
+	stores, err := sc.storeUsecase.GetAllStores(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": stores})
+}

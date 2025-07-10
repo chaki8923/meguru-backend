@@ -1,0 +1,4 @@
+ALTER TABLE stores ADD COLUMN address VARCHAR(255) NOT NULL;
+ALTER TABLE stores DROP COLUMN prefecture;
+ALTER TABLE stores DROP COLUMN city;
+ALTER TABLE stores DROP COLUMN street;

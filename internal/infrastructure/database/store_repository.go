@@ -21,11 +21,11 @@ func NewStoreRepository(db *sql.DB) repository.StoreRepository {
 
 func (r *storeRepository) Create(ctx context.Context, store *entity.Store) error {
 	query := `
-		INSERT INTO stores (id, name, address, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5)`
+		INSERT INTO stores (id, name, prefecture, city, street, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
 	_, err := r.db.ExecContext(ctx, query,
-		store.ID, store.Name, store.Address, store.CreatedAt, store.UpdatedAt)
+		store.ID, store.Name, store.Prefecture, store.City, store.Street, store.CreatedAt, store.UpdatedAt)
 
 	return err
 }
@@ -33,24 +33,24 @@ func (r *storeRepository) Create(ctx context.Context, store *entity.Store) error
 func (r *storeRepository) Update(ctx context.Context, store *entity.Store) error {
 	query := `
 		UPDATE stores
-		SET name = $2, address = $3, updated_at = $4
+		SET name = $2, prefecture = $3, city = $4, street = $5, updated_at = $6
 		WHERE id = $1`
 
 	_, err := r.db.ExecContext(ctx, query,
-		store.ID, store.Name, store.Address, store.UpdatedAt)
+		store.ID, store.Name, store.Prefecture, store.City, store.Street, store.UpdatedAt)
 
 	return err
 }
 
 func (r *storeRepository) FindByID(ctx context.Context, id uuid.UUID) (*entity.Store, error) {
 	query := `
-		SELECT id, name, address, created_at, updated_at
+		SELECT id, name, prefecture, city, street, created_at, updated_at
 		FROM stores
 		WHERE id = $1`
 
 	store := &entity.Store{}
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&store.ID, &store.Name, &store.Address, &store.CreatedAt, &store.UpdatedAt)
+		&store.ID, &store.Name, &store.Prefecture, &store.City, &store.Street, &store.CreatedAt, &store.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -60,4 +60,33 @@ func (r *storeRepository) FindByID(ctx context.Context, id uuid.UUID) (*entity.S
 	}
 
 	return store, nil
+}
+
+func (r *storeRepository) FindAll(ctx context.Context) ([]*entity.Store, error) {
+	query := `
+		SELECT id, name, prefecture, city, street, created_at, updated_at
+		FROM stores`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	stores := make([]*entity.Store, 0)
+	for rows.Next() {
+		store := &entity.Store{}
+		if err := rows.Scan(
+			&store.ID, &store.Name, &store.Prefecture, &store.City, &store.Street, &store.CreatedAt, &store.UpdatedAt);
+		 err != nil {
+			return nil, err
+		}
+		stores = append(stores, store)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return stores, nil
 }
