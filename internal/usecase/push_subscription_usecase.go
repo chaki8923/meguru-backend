@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -92,7 +93,13 @@ func (u *PushSubscriptionUsecase) SendNotificationToAll(ctx context.Context, req
 		return errors.New("no subscriptions found")
 	}
 
-	payload := []byte(`{"title":"` + req.Title + `", "message":"` + req.Message + `"}`)
+		payload, err := json.Marshal(map[string]string{
+		"title": req.Title,
+		"body":  req.Message,
+	})
+	if err != nil {
+		return err
+	}
 
 	for _, sub := range subscriptions {
 		err := u.webPushService.SendNotification(ctx, sub, payload)

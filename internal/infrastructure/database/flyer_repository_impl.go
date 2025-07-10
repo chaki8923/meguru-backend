@@ -22,10 +22,10 @@ func NewFlyerRepository(db *sql.DB) repository.FlyerRepository {
 	return &FlyerRepositoryImpl{db: db}
 }
 
-func (r *FlyerRepositoryImpl) SaveFlyer(ctx context.Context, flyer *entity.Flyer, flyerData *dto.FlyerData) (*entity.Flyer, error) {
+func (r *FlyerRepositoryImpl) SaveFlyer(ctx context.Context, flyer *entity.Flyer, flyerData *dto.FlyerData) (*entity.Flyer, uuid.UUID, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+		return nil, uuid.Nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback() // Rollback on error
 
@@ -35,7 +35,7 @@ func (r *FlyerRepositoryImpl) SaveFlyer(ctx context.Context, flyer *entity.Flyer
 	flyer.UpdatedAt = flyer.CreatedAt
 	_, err = tx.ExecContext(ctx, "INSERT INTO flyers (id, image_data, created_at, updated_at) VALUES ($1, $2, $3, $4)", flyer.ID, flyer.ImageData, flyer.CreatedAt, flyer.UpdatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert into flyers: %w", err)
+		return nil, uuid.Nil, fmt.Errorf("failed to insert into flyers: %w", err)
 	}
 
 	// 2. Find or Create Store
@@ -44,12 +44,12 @@ func (r *FlyerRepositoryImpl) SaveFlyer(ctx context.Context, flyer *entity.Flyer
 	err = tx.QueryRowContext(ctx, "SELECT id FROM stores WHERE name = $1", storeInfo.Name).Scan(&storeID)
 	if err == sql.ErrNoRows {
 		storeID = uuid.New()
-		_, err = tx.ExecContext(ctx, "INSERT INTO stores (id, name, address, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())", storeID, storeInfo.Name, storeInfo.Address)
+		_, err = tx.ExecContext(ctx, "INSERT INTO stores (id, name, prefecture, city, street, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())", storeID, storeInfo.Name, storeInfo.Prefecture, storeInfo.City, storeInfo.Street)
 		if err != nil {
-			return nil, fmt.Errorf("failed to insert store: %w", err)
+			return nil, uuid.Nil, fmt.Errorf("failed to insert store: %w", err)
 		}
 	} else if err != nil {
-		return nil, fmt.Errorf("failed to query store: %w", err)
+		return nil, uuid.Nil, fmt.Errorf("failed to query store: %w", err)
 	}
 
 	// 3. Create Campaign
@@ -59,13 +59,13 @@ func (r *FlyerRepositoryImpl) SaveFlyer(ctx context.Context, flyer *entity.Flyer
 	endDate, _ := time.Parse("2006-01-02", campaignInfo.EndDate)
 	_, err = tx.ExecContext(ctx, "INSERT INTO campaigns (id, flyer_id, name, start_date, end_date, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())", campaignID, flyer.ID, campaignInfo.Name, startDate, endDate)
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert campaign: %w", err)
+		return nil, uuid.Nil, fmt.Errorf("failed to insert campaign: %w", err)
 	}
 
 	// 4. Link Campaign and Store
 	_, err = tx.ExecContext(ctx, "INSERT INTO campaign_stores (campaign_id, store_id) VALUES ($1, $2)", campaignID, storeID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert into campaign_stores: %w", err)
+		return nil, uuid.Nil, fmt.Errorf("failed to insert into campaign_stores: %w", err)
 	}
 
 	// 5. Find or Create Products and create FlyerItems
@@ -77,32 +77,33 @@ func (r *FlyerRepositoryImpl) SaveFlyer(ctx context.Context, flyer *entity.Flyer
 			productID = uuid.New()
 			_, err = tx.ExecContext(ctx, "INSERT INTO products (id, name, category, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())", productID, productInfo.Name, productInfo.Category)
 			if err != nil {
-				return nil, fmt.Errorf("failed to insert product: %w", err)
+				return nil, uuid.Nil, fmt.Errorf("failed to insert product: %w", err)
 			}
 		} else if err != nil {
-			return nil, fmt.Errorf("failed to query product: %w", err)
+			return nil, uuid.Nil, fmt.Errorf("failed to query product: %w", err)
 		}
 
 		// Create FlyerItem
 		_, err = tx.ExecContext(ctx, "INSERT INTO flyer_items (id, campaign_id, product_id, price_excluding_tax, price_including_tax, unit, restriction_note, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())", uuid.New(), campaignID, productID, itemData.PriceExcludingTax, itemData.PriceIncludingTax, itemData.Unit, itemData.RestrictionNote)
 		if err != nil {
-			return nil, fmt.Errorf("failed to insert flyer_item: %w", err)
+			return nil, uuid.Nil, fmt.Errorf("failed to insert flyer_item: %w", err)
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
 		log.Printf("Transaction commit failed: %v", err)
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		return nil, uuid.Nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	return flyer, nil
+	return flyer, storeID, nil
 }
 
 func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID string) (*entity.Flyer, *dto.FlyerData, error) {
+	log.Printf("GetFlyerByStoreID called with storeID: %s", storeID)
 	query := `
     SELECT
         f.id, f.image_data, f.created_at, f.updated_at,
-        s.name, s.address,
+        s.name, s.prefecture, s.city, s.street,
         c.name, c.start_date, c.end_date,
         p.name, p.category,
         fi.price_excluding_tax, fi.price_including_tax, fi.unit, fi.restriction_note
@@ -130,7 +131,7 @@ func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID str
 		var flyerID uuid.UUID
 		var imageData []byte
 		var createdAt, updatedAt time.Time
-		var storeName, storeAddress string
+		var storeName, storePrefecture, storeCity, storeStreet string
 		var campaignName string
 		var startDate, endDate time.Time
 		var productName, productCategory, unit, restrictionNote sql.NullString
@@ -138,7 +139,7 @@ func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID str
 
 		if err := rows.Scan(
 			&flyerID, &imageData, &createdAt, &updatedAt,
-			&storeName, &storeAddress,
+			&storeName, &storePrefecture, &storeCity, &storeStreet,
 			&campaignName, &startDate, &endDate,
 			&productName, &productCategory,
 			&priceExcludingTax, &priceIncludingTax, &unit, &restrictionNote,
@@ -154,7 +155,9 @@ func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID str
 				UpdatedAt: updatedAt,
 			}
 			flyerData.StoreInfo.Name = storeName
-			flyerData.StoreInfo.Address = storeAddress
+			flyerData.StoreInfo.Prefecture = storePrefecture
+			flyerData.StoreInfo.City = storeCity
+			flyerData.StoreInfo.Street = storeStreet
 			flyerData.CampaignInfo.Name = campaignName
 			flyerData.CampaignInfo.StartDate = startDate.Format("2006-01-02")
 			flyerData.CampaignInfo.EndDate = endDate.Format("2006-01-02")
@@ -185,4 +188,3 @@ func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID str
 	flyerData.FlyerItemsInfo = items
 	return flyer, flyerData, nil
 }
-
