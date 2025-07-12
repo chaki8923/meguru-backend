@@ -36,6 +36,7 @@ func main() {
 	storeRepo := infraDB.NewStoreRepository(db)
 	pushSubscriptionRepo := infraDB.NewPushSubscriptionRepository(db)
 	flyerRepo := infraDB.NewFlyerRepository(db)
+	recipeRepo := infraDB.NewRecipeRepository(db)
 
 	// Initialize webpush service
 	webPushService := webpush.NewWebPushService()
@@ -46,6 +47,7 @@ func main() {
 	storeUsecase := usecase.NewStoreUsecase(storeRepo)
 	pushSubscriptionUsecase := usecase.NewPushSubscriptionUsecase(pushSubscriptionRepo, webPushService)
 	flyerUsecase := usecase.NewFlyerUsecase(flyerRepo)
+	recipeUsecase := usecase.NewRecipeUsecase(recipeRepo, os.Getenv("GEMINI_API_KEY"))
 
 	// Initialize controllers
 	userController := controller.NewUserController(userUsecase)
@@ -53,9 +55,10 @@ func main() {
 	storeController := controller.NewStoreController(storeUsecase)
 	pushSubscriptionController := controller.NewPushSubscriptionController(pushSubscriptionUsecase)
 	flyerController := controller.NewFlyerController(flyerUsecase)
+	recipeController := controller.NewRecipeController(recipeUsecase)
 
 	// Initialize router
-	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController)
+	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController, recipeController)
 
 	// Start server
 	port := os.Getenv("PORT")

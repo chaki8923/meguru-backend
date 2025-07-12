@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController) *gin.Engine {
+func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, recipeController *controller.RecipeController) *gin.Engine {
 	r := gin.Default()
 
 	// CORS設定
@@ -44,6 +44,10 @@ func NewRouter(userController *controller.UserController, healthController *cont
 		{
 			flyer.POST("/upload", flyerController.UploadFlyer)
 			flyer.GET("/:store_id", flyerController.GetFlyerByStoreID)
+		}
+		recipes := api.Group("/recipes")
+		{
+			recipes.GET("/suggest", recipeController.SuggestRecipes)
 		}
 	}
 
