@@ -6,7 +6,7 @@ tmp_dir = "tmp"
 
 [build]
   # ビルドコマンドを修正。./cmd/server をビルド対象として明記する。
-  cmd = "go build -o ./tmp/main ./cmd/server/main.go"
+  cmd = "go mod tidy && go build -o ./tmp/main ./cmd/server/main.go"
   # 実行ファイルは ./tmp/main に生成される
   bin = "./tmp/main"
   

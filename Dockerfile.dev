@@ -15,6 +15,9 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
+# Install AWS SDK for Go v2
+RUN go get github.com/aws/aws-sdk-go-v2/config github.com/aws/aws-sdk-go-v2/credentials github.com/aws/aws-sdk-go-v2/service/s3
+
 # プロジェクトの全ファイルをコピー
 COPY . .
 

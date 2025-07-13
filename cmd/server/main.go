@@ -5,6 +5,7 @@ import (
 	"os"
 
 	infraDB "meguru-backend/internal/infrastructure/database"
+	"meguru-backend/internal/infrastructure/r2"
 	"meguru-backend/internal/infrastructure/router"
 	"meguru-backend/internal/infrastructure/webpush"
 	"meguru-backend/internal/interface/controller"
@@ -47,7 +48,11 @@ func main() {
 	storeUsecase := usecase.NewStoreUsecase(storeRepo)
 	pushSubscriptionUsecase := usecase.NewPushSubscriptionUsecase(pushSubscriptionRepo, webPushService)
 	flyerUsecase := usecase.NewFlyerUsecase(flyerRepo)
-	recipeUsecase := usecase.NewRecipeUsecase(recipeRepo, os.Getenv("GEMINI_API_KEY"))
+	r2Service, err := r2.NewR2Service()
+	if err != nil {
+		log.Fatalf("Failed to create R2 service: %v", err)
+	}
+	recipeUsecase := usecase.NewRecipeUsecase(recipeRepo, r2Service, os.Getenv("GEMINI_API_KEY"))
 
 	// Initialize controllers
 	userController := controller.NewUserController(userUsecase)

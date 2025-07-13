@@ -11,19 +11,22 @@ import (
 
 	"meguru-backend/internal/domain/entity"
 	"meguru-backend/internal/domain/repository"
+	"meguru-backend/internal/infrastructure/r2"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
 )
 
 type RecipeUsecase struct {
-	recipeRepo repository.RecipeRepository
+	recipeRepo   repository.RecipeRepository
+	r2Service    *r2.R2Service
 	geminiAPIKey string
 }
 
-func NewRecipeUsecase(recipeRepo repository.RecipeRepository, geminiAPIKey string) *RecipeUsecase {
+func NewRecipeUsecase(recipeRepo repository.RecipeRepository, r2Service *r2.R2Service, geminiAPIKey string) *RecipeUsecase {
 	return &RecipeUsecase{
-		recipeRepo: recipeRepo,
+		recipeRepo:   recipeRepo,
+		r2Service:    r2Service,
 		geminiAPIKey: geminiAPIKey,
 	}
 }
@@ -49,7 +52,7 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
 	}
 	defer client.Close()
 
-	model := client.GenerativeModel("gemini-2.5-flash")
+	model := client.GenerativeModel("gemini-1.5-flash")
 
 	prompt := fmt.Sprintf(`以下の材料を使ったレシピを10個提案してください。
 
@@ -129,25 +132,67 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
 	}
 
 	var savedRecipes []entity.Recipe
+
 	for _, sr := range suggestedRecipes {
+		// --- Image Generation ---
+		imageModel := client.GenerativeModel("gemini-1.5-flash-preview-image-generation")
+		imagePrompt := fmt.Sprintf("A realistic, high-quality photo of %s", sr.Title)
+
+		imageResp, err := imageModel.GenerateContent(ctx, genai.Text(imagePrompt))
+		if err != nil {
+			log.Printf("failed to generate image for %s: %v", sr.Title, err)
+		}
+
+		var imageURL string
+		if imageResp != nil && len(imageResp.Candidates) > 0 && imageResp.Candidates[0].Content != nil {
+			for _, part := range imageResp.Candidates[0].Content.Parts {
+				if blob, ok := part.(genai.Blob); ok {
+					fileKey := fmt.Sprintf("recipe-images/%s-%d.png", strings.ReplaceAll(sr.Title, " ", "-"), time.Now().UnixNano())
+					imageURL, err = u.r2Service.UploadImage(ctx, fileKey, blob.Data)
+					if err != nil {
+						log.Printf("failed to upload image for %s: %v", sr.Title, err)
+					}
+					break
+				}
+			}
+		}
+
+		// --- Prepare data for saving ---
 		recipe := entity.Recipe{
 			Title:         sr.Title,
 			Description:   sr.Description,
+			ImageURL:      imageURL,
 			CookingTime:   sr.CookingTime,
 			Servings:      sr.Servings,
 			Cost:          sr.Cost,
 			TotalCalories: sr.TotalCalories,
 		}
-		var recipeIngredients []entity.Ingredient
-		for _, i := range sr.Ingredients {
-			recipeIngredients = append(recipeIngredients, entity.Ingredient{Name: i.Name})
+
+		// --- Combine original and suggested ingredients ---
+		ingredientSet := make(map[string]struct{})
+		var finalIngredients []entity.Ingredient
+
+		// Add original ingredients from the request first
+		for _, name := range ingredients {
+			if _, exists := ingredientSet[name]; !exists {
+				ingredientSet[name] = struct{}{}
+				finalIngredients = append(finalIngredients, entity.Ingredient{Name: name})
+			}
 		}
+		// Add ingredients from the Gemini response
+		for _, i := range sr.Ingredients {
+			if _, exists := ingredientSet[i.Name]; !exists {
+				ingredientSet[i.Name] = struct{}{}
+				finalIngredients = append(finalIngredients, entity.Ingredient{Name: i.Name})
+			}
+		}
+
 		var recipeSteps []entity.Step
 		for _, s := range sr.Steps {
 			recipeSteps = append(recipeSteps, entity.Step{StepNumber: s.StepNumber, Instruction: s.Instruction})
 		}
 
-		savedRecipe, err := u.recipeRepo.SaveRecipe(ctx, recipe, recipeIngredients, recipeSteps)
+		savedRecipe, err := u.recipeRepo.SaveRecipe(ctx, recipe, finalIngredients, recipeSteps)
 		if err != nil {
 			return nil, fmt.Errorf("failed to save recipe: %w", err)
 		}
