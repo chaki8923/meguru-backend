@@ -52,7 +52,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create R2 service: %v", err)
 	}
-	recipeUsecase := usecase.NewRecipeUsecase(recipeRepo, r2Service, os.Getenv("GEMINI_API_KEY"))
+		recipeUsecase := usecase.NewRecipeUsecase(recipeRepo, r2Service, os.Getenv("GEMINI_PROJECT_ID"), os.Getenv("GEMINI_LOCATION"))
 
 	// Initialize controllers
 	userController := controller.NewUserController(userUsecase)

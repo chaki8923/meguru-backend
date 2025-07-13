@@ -9,25 +9,25 @@ import (
 	"strings"
 	"time"
 
+	"cloud.google.com/go/vertexai/genai"
 	"meguru-backend/internal/domain/entity"
 	"meguru-backend/internal/domain/repository"
 	"meguru-backend/internal/infrastructure/r2"
-
-	"github.com/google/generative-ai-go/genai"
-	"google.golang.org/api/option"
 )
 
 type RecipeUsecase struct {
-	recipeRepo   repository.RecipeRepository
-	r2Service    *r2.R2Service
-	geminiAPIKey string
+	recipeRepo repository.RecipeRepository
+	r2Service  *r2.R2Service
+	projectID  string
+	location   string
 }
 
-func NewRecipeUsecase(recipeRepo repository.RecipeRepository, r2Service *r2.R2Service, geminiAPIKey string) *RecipeUsecase {
+func NewRecipeUsecase(recipeRepo repository.RecipeRepository, r2Service *r2.R2Service, projectID, location string) *RecipeUsecase {
 	return &RecipeUsecase{
-		recipeRepo:   recipeRepo,
-		r2Service:    r2Service,
-		geminiAPIKey: geminiAPIKey,
+		recipeRepo: recipeRepo,
+		r2Service:  r2Service,
+		projectID:  projectID,
+		location:   location,
 	}
 }
 
@@ -46,7 +46,7 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
 		return recipes, nil
 	}
 
-	client, err := genai.NewClient(ctx, option.WithAPIKey(u.geminiAPIKey))
+	client, err := genai.NewClient(ctx, u.projectID, u.location)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create genai client: %w", err)
 	}
@@ -135,10 +135,10 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
 
 	for _, sr := range suggestedRecipes {
 		// --- Image Generation ---
-		imageModel := client.GenerativeModel("gemini-1.5-flash-preview-image-generation")
 		imagePrompt := fmt.Sprintf("A realistic, high-quality photo of %s", sr.Title)
+		imgModel := client.GenerativeModel("imagegeneration@006")
+		imageResp, err := imgModel.GenerateContent(ctx, genai.Text(imagePrompt))
 
-		imageResp, err := imageModel.GenerateContent(ctx, genai.Text(imagePrompt))
 		if err != nil {
 			log.Printf("failed to generate image for %s: %v", sr.Title, err)
 		}
