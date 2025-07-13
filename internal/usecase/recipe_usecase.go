@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"strings"
+	"time"
 
 	"meguru-backend/internal/domain/entity"
 	"meguru-backend/internal/domain/repository"
@@ -33,6 +35,11 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
 	}
 
 	if len(recipes) > 0 {
+		rand.Seed(time.Now().UnixNano())
+		rand.Shuffle(len(recipes), func(i, j int) { recipes[i], recipes[j] = recipes[j], recipes[i] })
+		if len(recipes) > 3 {
+			return recipes[:3], nil
+		}
 		return recipes, nil
 	}
 
@@ -42,9 +49,9 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
 	}
 	defer client.Close()
 
-	model := client.GenerativeModel("gemini-1.5-flash")
+	model := client.GenerativeModel("gemini-2.5-flash")
 
-	prompt := fmt.Sprintf(`以下の材料を使ったレシピを3つ提案してください。
+	prompt := fmt.Sprintf(`以下の材料を使ったレシピを10個提案してください。
 
 材料: %s
 
@@ -56,6 +63,8 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
     "description": "レシピの説明",
     "cooking_time": 調理時間(分),
     "servings": 何人前か,
+	"cost": 予想金額(円),
+	"total_calories": 総カロリー(kcal),
     "ingredients": [
       {
         "name": "材料名",
@@ -93,18 +102,19 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
 
 	log.Printf("Generated JSON: %s", jsonString)
 
-	// Gemini APIからのレスポンスからMarkdownのバッククォートを削除
 	cleanedJsonString := strings.TrimSpace(jsonString)
 	cleanedJsonString = strings.TrimPrefix(cleanedJsonString, "```json")
 	cleanedJsonString = strings.TrimSuffix(cleanedJsonString, "```")
 	cleanedJsonString = strings.TrimSpace(cleanedJsonString)
 
 	var suggestedRecipes []struct {
-		Title       string `json:"title"`
-		Description string `json:"description"`
-		CookingTime int    `json:"cooking_time"`
-		Servings    int    `json:"servings"`
-		Ingredients []struct {
+		Title         string `json:"title"`
+		Description   string `json:"description"`
+		CookingTime   int    `json:"cooking_time"`
+		Servings      int    `json:"servings"`
+		Cost          int    `json:"cost"`
+		TotalCalories int    `json:"total_calories"`
+		Ingredients   []struct {
 			Name     string `json:"name"`
 			Quantity string `json:"quantity"`
 		} `json:"ingredients"`
@@ -121,10 +131,12 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
 	var savedRecipes []entity.Recipe
 	for _, sr := range suggestedRecipes {
 		recipe := entity.Recipe{
-			Title:       sr.Title,
-			Description: sr.Description,
-			CookingTime: sr.CookingTime,
-			Servings:    sr.Servings,
+			Title:         sr.Title,
+			Description:   sr.Description,
+			CookingTime:   sr.CookingTime,
+			Servings:      sr.Servings,
+			Cost:          sr.Cost,
+			TotalCalories: sr.TotalCalories,
 		}
 		var recipeIngredients []entity.Ingredient
 		for _, i := range sr.Ingredients {
@@ -140,6 +152,10 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
 			return nil, fmt.Errorf("failed to save recipe: %w", err)
 		}
 		savedRecipes = append(savedRecipes, savedRecipe)
+	}
+
+	if len(savedRecipes) > 3 {
+		return savedRecipes[:3], nil
 	}
 
 	return savedRecipes, nil

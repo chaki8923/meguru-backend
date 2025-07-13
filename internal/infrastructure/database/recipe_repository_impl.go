@@ -52,7 +52,7 @@ func (r *recipeRepository) SaveRecipe(ctx context.Context, recipe entity.Recipe,
 	defer tx.Rollback()
 
 	// Save recipe
-	stmt, err := tx.PrepareNamedContext(ctx, `INSERT INTO recipes (title, description, image_url, cooking_time, servings) VALUES (:title, :description, :image_url, :cooking_time, :servings) RETURNING id`)
+	stmt, err := tx.PrepareNamedContext(ctx, `INSERT INTO recipes (title, description, image_url, cooking_time, servings, cost, total_calories) VALUES (:title, :description, :image_url, :cooking_time, :servings, :cost, :total_calories) RETURNING id`)
 	if err != nil {
 		return entity.Recipe{}, err
 	}
