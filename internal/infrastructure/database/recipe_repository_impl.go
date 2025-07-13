@@ -91,3 +91,8 @@ func (r *recipeRepository) SaveRecipe(ctx context.Context, recipe entity.Recipe,
 
 	return recipe, tx.Commit()
 }
+
+func (r *recipeRepository) UpdateRecipeImageURL(ctx context.Context, recipeID uint64, imageURL string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE recipes SET image_url = $1 WHERE id = $2`, imageURL, recipeID)
+	return err
+}

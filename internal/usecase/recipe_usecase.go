@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"strings"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/vertexai/genai"
@@ -15,20 +16,45 @@ import (
 	"meguru-backend/internal/infrastructure/r2"
 )
 
+type imageGenerationJob struct {
+	recipeID    uint64
+	recipeTitle string
+}
+
+var (
+	imageJobQueue = make(chan imageGenerationJob, 100) // Buffer for 100 jobs
+	startWorkerOnce sync.Once
+)
+
 type RecipeUsecase struct {
-	recipeRepo repository.RecipeRepository
-	r2Service  *r2.R2Service
-	projectID  string
-	location   string
+	recipeRepo      repository.RecipeRepository
+	r2Service       *r2.R2Service
+	projectID       string
+	location        string
+	genaiClient     *genai.Client
 }
 
 func NewRecipeUsecase(recipeRepo repository.RecipeRepository, r2Service *r2.R2Service, projectID, location string) *RecipeUsecase {
-	return &RecipeUsecase{
-		recipeRepo: recipeRepo,
-		r2Service:  r2Service,
-		projectID:  projectID,
-		location:   location,
+	ctx := context.Background()
+	client, err := genai.NewClient(ctx, projectID, location)
+	if err != nil {
+		log.Fatalf("Failed to create genai client: %v", err)
 	}
+
+	u := &RecipeUsecase{
+		recipeRepo:      recipeRepo,
+		r2Service:       r2Service,
+		projectID:       projectID,
+		location:        location,
+		genaiClient:     client,
+	}
+
+	// Start the worker only once
+	startWorkerOnce.Do(func() {
+		go u.imageGenerationWorker()
+	})
+
+	return u
 }
 
 func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string) ([]entity.Recipe, error) {
@@ -46,13 +72,7 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
 		return recipes, nil
 	}
 
-	client, err := genai.NewClient(ctx, u.projectID, u.location)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create genai client: %w", err)
-	}
-	defer client.Close()
-
-	model := client.GenerativeModel("gemini-2.0-flash-001")
+	model := u.genaiClient.GenerativeModel("gemini-2.0-flash-001")
 
 	prompt := fmt.Sprintf(`以下の材料を使ったレシピを10個提案してください。
 
@@ -136,34 +156,11 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
 	var savedRecipes []entity.Recipe
 
 	for _, sr := range suggestedRecipes {
-		// --- Image Generation ---
-		imagePrompt := fmt.Sprintf("A realistic, high-quality photo of %s", sr.Title)
-		imgModel := client.GenerativeModel("imagegeneration@006")
-		imageResp, err := imgModel.GenerateContent(ctx, genai.Text(imagePrompt))
-
-		if err != nil {
-			log.Printf("failed to generate image for %s: %v", sr.Title, err)
-		}
-
-		var imageURL string
-		if imageResp != nil && len(imageResp.Candidates) > 0 && imageResp.Candidates[0].Content != nil {
-			for _, part := range imageResp.Candidates[0].Content.Parts {
-				if blob, ok := part.(genai.Blob); ok {
-					fileKey := fmt.Sprintf("recipe-images/%s-%d.png", strings.ReplaceAll(sr.Title, " ", "-"), time.Now().UnixNano())
-					imageURL, err = u.r2Service.UploadImage(ctx, fileKey, blob.Data)
-					if err != nil {
-						log.Printf("failed to upload image for %s: %v", sr.Title, err)
-					}
-					break
-				}
-			}
-		}
-
 		// --- Prepare data for saving ---
 		recipe := entity.Recipe{
 			Title:         sr.Title,
 			Description:   sr.Description,
-			ImageURL:      imageURL,
+			ImageURL:      "", // Initially empty
 			CookingTime:   sr.CookingTime,
 			Servings:      sr.Servings,
 			Cost:          sr.Cost,
@@ -199,6 +196,10 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
 		if err != nil {
 			return nil, fmt.Errorf("failed to save recipe: %w", err)
 		}
+
+		// Add image generation job to the queue
+		imageJobQueue <- imageGenerationJob{recipeID: savedRecipe.ID, recipeTitle: savedRecipe.Title}
+
 		savedRecipes = append(savedRecipes, savedRecipe)
 	}
 
@@ -207,4 +208,46 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
 	}
 
 	return savedRecipes, nil
+}
+
+func (u *RecipeUsecase) imageGenerationWorker() {
+	ctx := context.Background()
+	imgModel := u.genaiClient.GenerativeModel("imagegeneration@006")
+
+	for job := range imageJobQueue {
+		log.Printf("[Worker] Start processing job for recipe ID %d: %s", job.recipeID, job.recipeTitle)
+
+		var err error
+		var imageURL string
+
+		imagePrompt := fmt.Sprintf("A realistic, high-quality photo of %s", job.recipeTitle)
+		imageResp, err := imgModel.GenerateContent(ctx, genai.Text(imagePrompt))
+		if err != nil {
+			log.Printf("[Worker] Failed to generate image for recipe ID %d: %v", job.recipeID, err)
+		} else if imageResp != nil && len(imageResp.Candidates) > 0 && imageResp.Candidates[0].Content != nil {
+			for _, part := range imageResp.Candidates[0].Content.Parts {
+				if blob, ok := part.(genai.Blob); ok {
+					fileKey := fmt.Sprintf("recipe-images/%s-%d.png", strings.ReplaceAll(job.recipeTitle, " ", "-"), time.Now().UnixNano())
+					imageURL, err = u.r2Service.UploadImage(ctx, fileKey, blob.Data)
+					if err != nil {
+						log.Printf("[Worker] Failed to upload image for recipe ID %d: %v", job.recipeID, err)
+					} else {
+						log.Printf("[Worker] Image generated and uploaded for recipe ID %d. URL: %s", job.recipeID, imageURL)
+						if err := u.recipeRepo.UpdateRecipeImageURL(ctx, job.recipeID, imageURL); err != nil {
+							log.Printf("[Worker] Failed to update image URL for recipe ID %d: %v", job.recipeID, err)
+						} else {
+							log.Printf("[Worker] Successfully updated image URL for recipe ID %d", job.recipeID)
+						}
+					}
+					break
+				}
+			}
+		} else {
+			log.Printf("[Worker] No image data found for recipe ID %d", job.recipeID)
+		}
+
+		// Wait for a moment after each job to avoid hitting the rate limit
+		log.Printf("[Worker] Waiting for 5 seconds before next job...")
+		time.Sleep(5 * time.Second)
+	}
 }

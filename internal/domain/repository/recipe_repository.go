@@ -8,4 +8,5 @@ import (
 type RecipeRepository interface {
 	FindRecipesByIngredients(ctx context.Context, ingredientNames []string) ([]entity.Recipe, error)
 	SaveRecipe(ctx context.Context, recipe entity.Recipe, ingredients []entity.Ingredient, steps []entity.Step) (entity.Recipe, error)
+	UpdateRecipeImageURL(ctx context.Context, recipeID uint64, imageURL string) error
 }
