@@ -35,8 +35,10 @@ services:
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
       - JWT_SECRET=${JWT_SECRET}
       - PORT=${PORT}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcloud-credentials.json
     volumes:
       - .:/app
+      - ./gcloud-credentials.json:/app/gcloud-credentials.json
     networks:
       - meguru-network
 

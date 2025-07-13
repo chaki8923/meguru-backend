@@ -11,6 +11,7 @@ type Recipe struct {
 	Servings      int       `db:"servings"`
 	Cost          int       `db:"cost"`
 	TotalCalories int       `db:"total_calories"`
+	TotalScore    int       `db:"total_score"`
 	CreatedAt     time.Time `db:"created_at"`
 	UpdatedAt     time.Time `db:"updated_at"`
 }

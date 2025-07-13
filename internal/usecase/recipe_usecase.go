@@ -52,7 +52,7 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
 	}
 	defer client.Close()
 
-	model := client.GenerativeModel("gemini-1.5-flash")
+	model := client.GenerativeModel("gemini-2.0-flash-001")
 
 	prompt := fmt.Sprintf(`以下の材料を使ったレシピを10個提案してください。
 
@@ -68,6 +68,7 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
     "servings": 何人前か,
 	"cost": 予想金額(円),
 	"total_calories": 総カロリー(kcal),
+	"total_score": 総合評価(10点満点。調理時間、費用、カロリーを総合的に評価),
     "ingredients": [
       {
         "name": "材料名",
@@ -117,6 +118,7 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
 		Servings      int    `json:"servings"`
 		Cost          int    `json:"cost"`
 		TotalCalories int    `json:"total_calories"`
+		TotalScore    int    `json:"total_score"`
 		Ingredients   []struct {
 			Name     string `json:"name"`
 			Quantity string `json:"quantity"`
@@ -166,6 +168,7 @@ func (u *RecipeUsecase) SuggestRecipes(ctx context.Context, ingredients []string
 			Servings:      sr.Servings,
 			Cost:          sr.Cost,
 			TotalCalories: sr.TotalCalories,
+			TotalScore:    sr.TotalScore,
 		}
 
 		// --- Combine original and suggested ingredients ---
