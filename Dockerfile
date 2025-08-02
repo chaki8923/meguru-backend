@@ -11,6 +11,9 @@ RUN go mod download
 # アプリケーションのソースコードをコピー
 COPY . .
 
+# migrate CLIをインストール
+RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.2
+
 # ★★★★★ 修正点 ★★★★★
 # App Runnerの実行環境(linux/amd64)向けにアプリケーションをビルドします。
 # これにより `exec format error` が解消されます。
@@ -25,13 +28,23 @@ RUN apk --no-cache add ca-certificates
 
 WORKDIR /app
 
-# ビルドステージからコンパイル済みの実行ファイルのみをコピー
+# ビルドステージからコンパイル済みの実行ファイルとマイグレーションファイルをコピー
 COPY --from=builder /app/main .
+COPY --from=builder /go/bin/migrate /usr/local/bin/migrate
+
+# マイグレーションファイルをコピー
+COPY ./scripts/db/migrations ./migrations
 
 # ★★★★★ 注意点 ★★★★★
 # .env ファイルをイメージにコピーする処理は削除しました。
 # データベースのパスワードなどの機密情報は、コンテナイメージに含めず、
 # CloudFormationやApp Runnerのコンソールから設定する環境変数で渡すのが安全です。
+
+# 起動スクリプトをコピー
+COPY ./.entrypoint.sh .
+RUN chmod +x .entrypoint.sh
+
+ENTRYPOINT ["./.entrypoint.sh"]
 
 # アプリケーションがリッスンするポート
 EXPOSE 8080

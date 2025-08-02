@@ -52,6 +52,7 @@ DB_PASSWORD=meguru_password
 DB_NAME=meguru_db
 JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
 PORT=8080
+DATABASE_URL=postgres://meguru_user:meguru_password@localhost:5432/meguru_db?sslmode=disable
 EOF
 ```
 
@@ -76,11 +77,7 @@ docker-compose logs -f
 docker-compose ps
 
 # アプリケーションが起動していることを確認
-curl http://localhost:8080/api/v1/users/register \
-  -X POST \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"test123","name":"Test User"}'
-```
+curl -i http://localhost:8080/health
 
 #### 6. API テスト
 
@@ -121,6 +118,48 @@ curl -X POST http://localhost:8080/api/v1/users/register \
 # {"error":"user with this email already exists"}
 ```
 
+**店舗登録のテスト:**
+```bash
+# 新規店舗登録
+curl -X POST http://localhost:8080/api/v1/stores \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "テスト店舗",
+    "address": "東京都渋谷区"
+  }'
+
+# 期待される正常レスポンス:
+# {
+#   "data": {
+#     "id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+#     "name": "テスト店舗",
+#     "address": "東京都渋谷区",
+#     "created_at": "2025-XX-XXTXX:XX:XX.XXXXXXXZ"
+#   }
+# }
+```
+
+**店舗更新のテスト:**
+```bash
+# 店舗情報更新（:idは実際の店舗IDに置き換えてください）
+curl -X PUT http://localhost:8080/api/v1/stores/:id \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "更新された店舗名",
+    "address": "東京都新宿区"
+  }'
+
+# 期待される正常レスポンス:
+# {
+#   "data": {
+#     "id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+#     "name": "更新された店舗名",
+#     "address": "東京都新宿区",
+#     "updated_at": "2025-XX-XXTXX:XX:XX.XXXXXXXZ"
+#   }
+# }
+```
+
 #### 7. トラブルシューティング
 
 **コンテナが起動しない場合:**
@@ -151,6 +190,14 @@ docker-compose down -v
 docker-compose up -d
 ```
 
+**データベースの全データ削除:**
+
+開発中にデータベースのデータをすべて削除したい場合は、以下のコマンドを`meguru-backend`ディレクトリで実行してください。このコマンドは、テーブル構造は残したまま、すべてのデータを削除します。
+
+```bash
+docker-compose exec db psql -U meguru_user -d meguru_db -c "DO \$\$ BEGIN EXECUTE (SELECT 'TRUNCATE TABLE ' || string_agg(quote_ident(tablename), ', ') || ' RESTART IDENTITY CASCADE' FROM pg_tables WHERE schemaname = 'public'); END \$\$"
+```
+
 #### 8. ローカル開発（Docker を使わない場合）
 
 Docker を使わずにローカルでGoアプリケーションを開発したい場合：
@@ -179,6 +226,7 @@ DB_PASSWORD=meguru_password
 DB_NAME=meguru_db
 JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
 PORT=8080
+DATABASE_URL=postgres://meguru_user:meguru_password@localhost:5432/meguru_db?sslmode=disable
 ```
 
 ### フロントエンドのセットアップ
@@ -199,7 +247,7 @@ npm run dev
 ## API エンドポイント
 
 ### ユーザー登録
-- **URL**: `POST /api/v1/users/register`
+- **URL**: `POST /api/v1/users/signup`
 - **Content-Type**: `application/json`
 - **リクエストボディ**:
 ```json
@@ -230,7 +278,7 @@ npm run dev
 ## ディレクトリ構造
 
 ```
-mguru/
+meguru/
 ├── README.md              # このファイル
 ├── meguru-front/          # Next.js フロントエンド
 │   ├── src/
@@ -246,22 +294,33 @@ mguru/
     │       └── main.go    # メインサーバーファイル
     ├── internal/
     │   ├── domain/        # ドメイン層
-    │   │   ├── entity/    # エンティティ
-    │   │   └── repository/ # リポジトリインターフェース
-    │   ├── usecase/       # ユースケース層
-    │   ├── interface/     # インターフェース層
-    │   │   └── controller/ # コントローラー
-    │   └── infrastructure/ # インフラストラクチャ層
-    │       ├── database/  # データベース実装
-    │       └── router/    # ルーティング
+    │   │   ├── domain_service/   # ドメインサービスのファイル（ドメインのビジネスロジック）
+    │   │   ├── entity/           # ドメインモデル（エンティティのファイル）
+    │   │   ├── repository/       # リポジトリのインターフェイスのファイル
+    │   │   └── value_object/     # バリューオブジェクトのファイル
+    │   ├── infrastructure/       # インフラストラクチャ層
+    │   │   ├── query_service/    # クエリサービス（参照系のデータアクセス）
+    │   │   └── repository/       # リポジトリ実装（登録・更新系のデータアクセス）
+    │   ├── middleware/           # JWT認証などAPI共通処理のミドルウェア
+    │   ├── presentation/         # プレゼンテーション層（APIハンドラー）
+    │   │   └── handler/          # HTTPリクエストハンドラーのファイル
+    │   ├── routes/               # ルーティング設定ファイル群
+    │   └── usecase/              # ユースケース層
+    │       ├── dto/              # データ転送用オブジェクト（DTO）
+    │       ├── query_model/      # クエリモデル（読み取り用のデータ構造）
+    │       ├── query_service/    # ユースケースから利用するクエリサービス
+    │       └──                   # ユースケースの実装ファイル
     ├── pkg/
-    │   └── database/      # データベース設定
+    │   └── database/             # データベース設定や接続ユーティリティ
+    ├── scripts/
+    │   └── db/
+    │       └── migrations/       # データベースマイグレーションファイル
     ├── docker-compose.yml
     ├── Dockerfile
-    ├── init.sql          # データベース初期化スクリプト
     ├── go.mod
     ├── go.sum
-    └── .env.example      # 環境変数の例
+    ├── .env.example              # 環境変数のサンプルファイル
+    └── .entrypoint.sh            # コンテナ起動時のエントリポイントスクリプト
 ```
 
 ## データベーススキーマ
@@ -270,13 +329,14 @@ mguru/
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id BIGSERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+); 
 ```
 
 ## 使用技術
@@ -397,7 +457,7 @@ func (u *UserUsecase) CreateUser(ctx context.Context, req *CreateUserRequest) (*
 **役割**: 外部からの入力を受け取り、適切な形式に変換してUsecaseに渡す
 
 **構成要素**:
-- **Controller** (`controller/user_controller.go`): HTTPリクエストの処理
+- **Handler** (`handler/user_handler.go`): HTTPリクエストの処理
   - リクエストのパース
   - バリデーション
   - Usecaseの呼び出し
@@ -405,7 +465,7 @@ func (u *UserUsecase) CreateUser(ctx context.Context, req *CreateUserRequest) (*
 
 **実装例**:
 ```go
-func (c *UserController) Register(ctx *gin.Context) {
+func (c *UserHandler) CreateUser(ctx *gin.Context) {
     var req usecase.CreateUserRequest
     
     // リクエストバインディング
@@ -434,6 +494,31 @@ func (c *UserController) Register(ctx *gin.Context) {
 - **Database** (`database/user_repository.go`): Repository インターフェースの具体的な実装
 - **Router** (`router/router.go`): HTTPルーティングの設定
 
+### CQRS（コマンドクエリ分離）について
+本設計では CQRS の考え方も取り入れています。CQRSとは「コマンド（Command：状態変更）」と「クエリ（Query：読み取り）」の処理を分離するパターンです。
+
+#### Command（コマンド）】
+- 新規作成・更新・削除など状態変更を伴う処理
+- ユースケース層でドメインを操作し、書き込み用リポジトリを利用
+- 例：CreateUser、UpdateProfile など
+
+#### Query（クエリ）
+- データの取得や表示用の処理で状態を変えない
+- 読み取り専用のクエリサービスを使い、パフォーマンスを最適化
+- ドメインモデルの形に必ずしも拘らず、ビューに最適化したデータ構造を利用することも多い
+
+#### CQRSのメリット
+- 読み書きで関心事を分離し、それぞれを最適化可能
+- 読み取りのパフォーマンス改善やキャッシュ導入がしやすい
+- ビジネスロジックの複雑化を防ぎ、テストも容易に
+
+#### CQRSのイメージ
+```
+ユーザーリクエスト
+ ├─ コマンド系（状態変更） → ユースケース（Command） → リポジトリ → DB書き込み
+ └─ クエリ系（読み取り） → ユースケース（Query） → クエリサービス → DB読み取り
+```
+
 ### データの流れ
 
 ユーザー登録の場合のデータフローを例に説明します：
@@ -443,7 +528,7 @@ func (c *UserController) Register(ctx *gin.Context) {
    ↓
 2. Router (Infrastructure)
    ↓
-3. Controller (Interface) 
+3. Handler (Interface) 
    - JSON パース
    - バリデーション
    ↓
@@ -488,20 +573,59 @@ Infrastructure → Interface → Usecase → Domain
 ```
 internal/
 ├── domain/                    # ドメイン層
-│   ├── entity/               # エンティティ
+│   ├── domain_service/        # ドメインサービス（エンティティだけで表現しきれないビジネスロジック）
+│   ├── entity/                # エンティティ
 │   │   └── user.go
-│   └── repository/           # リポジトリインターフェース
-│       └── user_repository.go
-├── usecase/                  # ユースケース層
+│   ├── repository/            # リポジトリのインターフェース
+│   │   └── user_repository.go
+│   └── value_object/          # バリューオブジェクト
+├── usecase/                   # ユースケース層
+│   ├── dto/                   # DTO（入力・出力データ構造）
+│   ├── query_model/           # クエリモデル（読み取り専用のデータ構造）
+│   ├── query_service/         # クエリサービスのインターフェース
 │   └── user_usecase.go
-├── interface/                # インターフェース層
-│   └── controller/
-│       └── user_controller.go
-└── infrastructure/           # インフラストラクチャ層
-    ├── database/            # データベース実装
-    │   └── user_repository.go
-    └── router/              # ルーティング
-        └── router.go
+├── presentation/              # インターフェース層
+│   └── handler/
+│       └── user_handler.go
+├── infrastructure/           # インフラストラクチャ層
+│   ├── query_service/         # クエリサービス（参照系データアクセス）
+│   ├── repository/            # データベース実装（書き込み系）
+│   │   └── user_repository.go
+│   └── middleware/            # JWT認証などのミドルウェア（共通処理）
+└── routes/                   # ルーティングファイル
+    └── router.go
+```
+
+## データベースマイグレーション
+本プロジェクトでは、golang-migrate/migrate を利用してデータベースのスキーマ管理を行っています。
+
+### マイグレーションファイルの管理
+マイグレーションファイルは meguru-backend/scripts/db/migrations/ に配置しています。
+
+ファイル名はタイムスタンプ + 処理内容を表す形式で管理しています。
+```
+例：
+20250607120000_create_stores_table.up.sql
+20250607120000_create_stores_table.down.sql
+```
+
+### マイグレーションの追加手順
+1. 新しいマイグレーションファイルを作成（例: 20250607123000_add_column_to_users.up.sql、20250607123000_add_column_to_users.down.sql）
+
+2. .up.sql に追加・変更のSQLを記述
+
+3. .down.sql に取り消しのSQLを記述
+
+4. マイグレーションを実行してスキーマを適用
+
+### マイグレーションの適用（最新バージョンまで）
+```
+docker compose exec app migrate -path ./scripts/db/migrations -database "${DATABASE_URL}" up
+```
+
+### ロールバック
+```
+docker compose exec app migrate -path ./scripts/db/migrations -database "${DATABASE_URL}" down
 ```
 
 ## 今後の機能

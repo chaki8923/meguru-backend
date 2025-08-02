@@ -8,6 +8,7 @@ import (
 
 	infraDB "meguru-backend/internal/infrastructure/database"
 	"meguru-backend/internal/infrastructure/router"
+	"meguru-backend/internal/infrastructure/webpush"
 	"meguru-backend/internal/interface/controller"
 	"meguru-backend/internal/usecase"
 	"meguru-backend/pkg/database"
@@ -20,6 +21,11 @@ func main() {
 		log.Println("No .env file found")
 	}
 
+<<<<<<< HEAD
+=======
+    
+	// Database configuration
+>>>>>>> origin/develop-chaki
 	dbConfig := database.GetConfigFromEnv()
 
 	var db *sql.DB
@@ -50,9 +56,29 @@ func main() {
 	defer db.Close()
 
 	userRepo := infraDB.NewUserRepository(db)
+	storeRepo := infraDB.NewStoreRepository(db)
+	pushSubscriptionRepo := infraDB.NewPushSubscriptionRepository(db)
+	flyerRepo := infraDB.NewFlyerRepository(db)
+
+	// Initialize webpush service
+	webPushService := webpush.NewWebPushService()
+
+	// Initialize use cases
 	userUsecase := usecase.NewUserUsecase(userRepo)
+	healthUsecase := usecase.NewHealthUsecase()
+	storeUsecase := usecase.NewStoreUsecase(storeRepo)
+	pushSubscriptionUsecase := usecase.NewPushSubscriptionUsecase(pushSubscriptionRepo, webPushService)
+	flyerUsecase := usecase.NewFlyerUsecase(flyerRepo)
+
+	// Initialize controllers
 	userController := controller.NewUserController(userUsecase)
-	r := router.NewRouter(userController)
+	healthController := controller.NewHealthController(healthUsecase)
+	storeController := controller.NewStoreController(storeUsecase)
+	pushSubscriptionController := controller.NewPushSubscriptionController(pushSubscriptionUsecase)
+	flyerController := controller.NewFlyerController(flyerUsecase)
+
+	// Initialize router
+	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController)
 
 	port := os.Getenv("PORT")
 	if port == "" {
