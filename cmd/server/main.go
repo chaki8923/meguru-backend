@@ -10,6 +10,7 @@ import (
 	infraDB "meguru-backend/internal/infrastructure/database"
 	"meguru-backend/internal/infrastructure/email"
 	"meguru-backend/internal/infrastructure/router"
+	"meguru-backend/internal/infrastructure/storage"
 	"meguru-backend/internal/infrastructure/webpush"
 	"meguru-backend/internal/interface/controller"
 	"meguru-backend/internal/usecase"
@@ -58,6 +59,7 @@ func main() {
 	storeRepo := infraDB.NewStoreRepository(db)
 	pushSubscriptionRepo := infraDB.NewPushSubscriptionRepository(db)
 	flyerRepo := infraDB.NewFlyerRepository(db)
+	productRepo := infraDB.NewProductRepository(db)
 
 	// Initialize email service
 	emailHost := os.Getenv("EMAIL_HOST")
@@ -69,12 +71,16 @@ func main() {
 	// Initialize webpush service
 	webPushService := webpush.NewWebPushService()
 
+	// Initialize R2 storage service
+	r2Service := storage.NewR2Service()
+
 	// Initialize use cases
 	userUsecase := usecase.NewUserUsecase(userRepo)
 	healthUsecase := usecase.NewHealthUsecase()
 	storeUsecase := usecase.NewStoreUsecase(storeRepo, emailService)
 	pushSubscriptionUsecase := usecase.NewPushSubscriptionUsecase(pushSubscriptionRepo, webPushService)
-	flyerUsecase := usecase.NewFlyerUsecase(flyerRepo, storeRepo)
+	flyerUsecase := usecase.NewFlyerUsecase(flyerRepo, storeRepo, productRepo)
+	productUsecase := usecase.NewProductUsecase(productRepo, storeRepo, r2Service)
 
 	// Initialize controllers
 	userController := controller.NewUserController(userUsecase)
@@ -82,9 +88,10 @@ func main() {
 	storeController := controller.NewStoreController(storeUsecase)
 	pushSubscriptionController := controller.NewPushSubscriptionController(pushSubscriptionUsecase)
 	flyerController := controller.NewFlyerController(flyerUsecase)
+	productController := controller.NewProductController(productUsecase)
 
 	// Initialize router
-	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController)
+	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController, productController)
 
 	port := os.Getenv("PORT")
 	if port == "" {

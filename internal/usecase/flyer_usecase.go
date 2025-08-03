@@ -32,14 +32,16 @@ type FlyerResponse struct {
 }
 
 type FlyerUsecase struct {
-	flyerRepository repository.FlyerRepository
-	storeRepository repository.StoreRepository
+	flyerRepository  repository.FlyerRepository
+	storeRepository  repository.StoreRepository
+	productRepository repository.ProductRepository
 }
 
-func NewFlyerUsecase(flyerRepository repository.FlyerRepository, storeRepository repository.StoreRepository) *FlyerUsecase {
+func NewFlyerUsecase(flyerRepository repository.FlyerRepository, storeRepository repository.StoreRepository, productRepository repository.ProductRepository) *FlyerUsecase {
 	return &FlyerUsecase{
-		flyerRepository: flyerRepository,
-		storeRepository: storeRepository,
+		flyerRepository:  flyerRepository,
+		storeRepository:  storeRepository,
+		productRepository: productRepository,
 	}
 }
 
@@ -240,7 +242,73 @@ func (u *FlyerUsecase) AnalyzeAndUpdateStoreFromFlyer(ctx context.Context, fileH
 		return nil, fmt.Errorf("failed to update store: %w", err)
 	}
 
-	// 7. チラシ情報を保存
+	// 7. チラシから抽出された商品を店舗商品として自動登録
+	if flyerData.FlyerItemsInfo != nil && len(flyerData.FlyerItemsInfo) > 0 {
+		for _, item := range flyerData.FlyerItemsInfo {
+			if item.Product.Name == "" {
+				continue // 商品名が空の場合はスキップ
+			}
+
+			// 商品マスターを検索または作成
+			product, err := u.productRepository.GetProductByName(ctx, item.Product.Name)
+			if err != nil {
+				log.Printf("Error searching product %s: %v", item.Product.Name, err)
+				continue
+			}
+
+			if product == nil {
+				// 商品が存在しない場合は作成
+				product = &entity.Product{
+					Name:     item.Product.Name,
+					Category: item.Product.Category,
+				}
+				product, err = u.productRepository.CreateProduct(ctx, product)
+				if err != nil {
+					log.Printf("Error creating product %s: %v", item.Product.Name, err)
+					continue
+				}
+			}
+
+			// 既に店舗商品として登録されているかチェック
+			existingStoreProduct, err := u.productRepository.GetStoreProductByStoreAndProduct(ctx, storeID, product.ID)
+			if err != nil {
+				log.Printf("Error checking existing store product %s: %v", item.Product.Name, err)
+				continue
+			}
+
+			if existingStoreProduct != nil {
+				// 既存の店舗商品の場合は価格と在庫を更新
+				existingStoreProduct.Price = item.PriceIncludingTax
+				existingStoreProduct.Status = "在庫あり" // チラシに載っているので在庫ありとする
+
+				_, err = u.productRepository.UpdateStoreProduct(ctx, existingStoreProduct)
+				if err != nil {
+					log.Printf("Error updating store product %s: %v", item.Product.Name, err)
+				} else {
+					log.Printf("Updated store product: %s (price: %d)", item.Product.Name, item.PriceIncludingTax)
+				}
+			} else {
+				// 新規店舗商品として登録
+				storeProduct := &entity.StoreProduct{
+					StoreID:   storeID,
+					ProductID: product.ID,
+					Price:     item.PriceIncludingTax,
+					Quantity:  1, // デフォルト在庫数
+					ImageURL:  "", // チラシ画像からは個別商品画像は取得できない
+					Status:    "在庫あり",
+				}
+
+				_, err = u.productRepository.CreateStoreProduct(ctx, storeProduct)
+				if err != nil {
+					log.Printf("Error creating store product %s: %v", item.Product.Name, err)
+				} else {
+					log.Printf("Created new store product: %s (price: %d)", item.Product.Name, item.PriceIncludingTax)
+				}
+			}
+		}
+	}
+
+	// 8. チラシ情報を保存
 	flyerToSave := &entity.Flyer{
 		ImageData: imageData,
 	}
@@ -250,7 +318,7 @@ func (u *FlyerUsecase) AnalyzeAndUpdateStoreFromFlyer(ctx context.Context, fileH
 		return nil, fmt.Errorf("failed to save flyer data: %w", err)
 	}
 
-	// 8. レスポンス作成
+	// 9. レスポンス作成
 	response := &FlyerResponse{
 		ID:         savedFlyer.ID.String(),
 		StoreID:    storeID.String(),

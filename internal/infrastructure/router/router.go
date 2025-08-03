@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController) *gin.Engine {
+func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, productController *controller.ProductController) *gin.Engine {
 	r := gin.Default()
 
 	// CORS設定
@@ -55,6 +55,16 @@ func NewRouter(userController *controller.UserController, healthController *cont
 		{
 			flyer.POST("/upload", flyerController.UploadFlyer)
 			flyer.GET("/:store_id", flyerController.GetFlyerByStoreID)
+		}
+		
+		// 商品関連のエンドポイント（認証必須）
+		products := api.Group("/products")
+		{
+			products.GET("", productController.ListStoreProducts)
+			products.POST("", productController.CreateStoreProduct)
+			products.GET("/:id", productController.GetStoreProduct)
+			products.PUT("/:id", productController.UpdateStoreProduct)
+			products.DELETE("/:id", productController.DeleteStoreProduct)
 		}
 	}
 
