@@ -22,6 +22,12 @@ func NewRouter(userController *controller.UserController, healthController *cont
 	// ヘルスチェックエンドポイント
 	r.GET("/health", healthController.GetHealth)
 
+	// 店舗登録エンドポイント（/store/shopRegister）
+	store := r.Group("/store")
+	{
+		store.POST("/shopRegister", storeController.RegisterShop)
+	}
+
 	// API routes
 	api := r.Group("/api/v1")
 	{

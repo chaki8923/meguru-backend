@@ -21,11 +21,12 @@ func NewStoreRepository(db *sql.DB) repository.StoreRepository {
 
 func (r *storeRepository) Create(ctx context.Context, store *entity.Store) error {
 	query := `
-		INSERT INTO stores (id, name, prefecture, city, street, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`
+		INSERT INTO stores (id, name, email, password, phone_number, zipcode, prefecture, city, street, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
 
 	_, err := r.db.ExecContext(ctx, query,
-		store.ID, store.Name, store.Prefecture, store.City, store.Street, store.CreatedAt, store.UpdatedAt)
+		store.ID, store.Name, store.Email, store.Password, store.PhoneNumber, store.Zipcode, 
+		store.Prefecture, store.City, store.Street, store.CreatedAt, store.UpdatedAt)
 
 	return err
 }
@@ -33,24 +34,27 @@ func (r *storeRepository) Create(ctx context.Context, store *entity.Store) error
 func (r *storeRepository) Update(ctx context.Context, store *entity.Store) error {
 	query := `
 		UPDATE stores
-		SET name = $2, prefecture = $3, city = $4, street = $5, updated_at = $6
+		SET name = $2, email = $3, password = $4, phone_number = $5, zipcode = $6, 
+		    prefecture = $7, city = $8, street = $9, updated_at = $10
 		WHERE id = $1`
 
 	_, err := r.db.ExecContext(ctx, query,
-		store.ID, store.Name, store.Prefecture, store.City, store.Street, store.UpdatedAt)
+		store.ID, store.Name, store.Email, store.Password, store.PhoneNumber, store.Zipcode,
+		store.Prefecture, store.City, store.Street, store.UpdatedAt)
 
 	return err
 }
 
 func (r *storeRepository) FindByID(ctx context.Context, id uuid.UUID) (*entity.Store, error) {
 	query := `
-		SELECT id, name, prefecture, city, street, created_at, updated_at
+		SELECT id, name, email, password, phone_number, zipcode, prefecture, city, street, created_at, updated_at
 		FROM stores
 		WHERE id = $1`
 
 	store := &entity.Store{}
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&store.ID, &store.Name, &store.Prefecture, &store.City, &store.Street, &store.CreatedAt, &store.UpdatedAt)
+		&store.ID, &store.Name, &store.Email, &store.Password, &store.PhoneNumber, &store.Zipcode,
+		&store.Prefecture, &store.City, &store.Street, &store.CreatedAt, &store.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -64,7 +68,7 @@ func (r *storeRepository) FindByID(ctx context.Context, id uuid.UUID) (*entity.S
 
 func (r *storeRepository) FindAll(ctx context.Context) ([]*entity.Store, error) {
 	query := `
-		SELECT id, name, prefecture, city, street, created_at, updated_at
+		SELECT id, name, email, password, phone_number, zipcode, prefecture, city, street, created_at, updated_at
 		FROM stores`
 
 	rows, err := r.db.QueryContext(ctx, query)
@@ -77,7 +81,8 @@ func (r *storeRepository) FindAll(ctx context.Context) ([]*entity.Store, error) 
 	for rows.Next() {
 		store := &entity.Store{}
 		if err := rows.Scan(
-			&store.ID, &store.Name, &store.Prefecture, &store.City, &store.Street, &store.CreatedAt, &store.UpdatedAt);
+			&store.ID, &store.Name, &store.Email, &store.Password, &store.PhoneNumber, &store.Zipcode,
+			&store.Prefecture, &store.City, &store.Street, &store.CreatedAt, &store.UpdatedAt);
 		 err != nil {
 			return nil, err
 		}

@@ -64,7 +64,7 @@ func (u *FlyerUsecase) AnalyzeAndSaveFlyer(ctx context.Context, fileHeader *mult
 	defer client.Close()
 
 	model := client.GenerativeModel("gemini-1.5-flash")
-	log.Println("プロンプト生成処理を開始します")
+	log.Println("プロンプト生成処理を開始します!")
 	prompt := `添付されたスーパーのチラシ画像を分析し、以下のJSON形式で情報を抽出してください。
 
 出力形式のルール:

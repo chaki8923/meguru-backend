@@ -4,16 +4,18 @@ import (
 	"database/sql"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	infraDB "meguru-backend/internal/infrastructure/database"
+	"meguru-backend/internal/infrastructure/email"
 	"meguru-backend/internal/infrastructure/router"
 	"meguru-backend/internal/infrastructure/webpush"
 	"meguru-backend/internal/interface/controller"
 	"meguru-backend/internal/usecase"
 	"meguru-backend/pkg/database"
 
-	"github.com/joho/godotenv" // ★★★ ここのタイプミスを修正 ★★★
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -21,11 +23,8 @@ func main() {
 		log.Println("No .env file found")
 	}
 
-<<<<<<< HEAD
-=======
     
 	// Database configuration
->>>>>>> origin/develop-chaki
 	dbConfig := database.GetConfigFromEnv()
 
 	var db *sql.DB
@@ -60,13 +59,20 @@ func main() {
 	pushSubscriptionRepo := infraDB.NewPushSubscriptionRepository(db)
 	flyerRepo := infraDB.NewFlyerRepository(db)
 
+	// Initialize email service
+	emailHost := os.Getenv("EMAIL_HOST")
+	emailPort, _ := strconv.Atoi(os.Getenv("EMAIL_PORT"))
+	emailUsername := os.Getenv("EMAIL_USERNAME")
+	emailPassword := os.Getenv("EMAIL_PASSWORD")
+	emailService := email.NewEmailService(emailHost, emailPort, emailUsername, emailPassword)
+
 	// Initialize webpush service
 	webPushService := webpush.NewWebPushService()
 
 	// Initialize use cases
 	userUsecase := usecase.NewUserUsecase(userRepo)
 	healthUsecase := usecase.NewHealthUsecase()
-	storeUsecase := usecase.NewStoreUsecase(storeRepo)
+	storeUsecase := usecase.NewStoreUsecase(storeRepo, emailService)
 	pushSubscriptionUsecase := usecase.NewPushSubscriptionUsecase(pushSubscriptionRepo, webPushService)
 	flyerUsecase := usecase.NewFlyerUsecase(flyerRepo)
 

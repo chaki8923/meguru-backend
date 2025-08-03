@@ -6,11 +6,14 @@ import (
 
 	"meguru-backend/internal/domain/entity"
 	"meguru-backend/internal/domain/repository"
+	"meguru-backend/internal/infrastructure/email"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type StoreUsecase struct {
 	storeRepo repository.StoreRepository
+	emailService *email.EmailService
 }
 
 type CreateStoreRequest struct {
@@ -52,9 +55,25 @@ type UpdateStoreResponse struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
-func NewStoreUsecase(storeRepo repository.StoreRepository) *StoreUsecase {
+// 店舗登録用の新しいリクエスト構造体（フロントエンドから送信される最小限の情報）
+type ShopRegisterRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=6"`
+}
+
+// 店舗登録用のレスポンス構造体
+type ShopRegisterResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    struct {
+		Token string `json:"token"`
+	} `json:"data"`
+}
+
+func NewStoreUsecase(storeRepo repository.StoreRepository, emailService *email.EmailService) *StoreUsecase {
 	return &StoreUsecase{
 		storeRepo: storeRepo,
+		emailService: emailService,
 	}
 }
 
@@ -122,4 +141,47 @@ func (u *StoreUsecase) GetStore(ctx context.Context, id uuid.UUID) (*entity.Stor
 
 func (u *StoreUsecase) GetAllStores(ctx context.Context) ([]*entity.Store, error) {
 	return u.storeRepo.FindAll(ctx)
+}
+
+// 店舗登録用の新しいメソッド
+func (u *StoreUsecase) RegisterShop(ctx context.Context, req *ShopRegisterRequest) (*ShopRegisterResponse, error) {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	// 最小限の情報で店舗エンティティを作成
+	store := &entity.Store{
+		ID:		 uuid.New(),
+		Email:		 req.Email,
+		Password:	 string(hashedPassword),
+		CreatedAt:	 time.Now(),
+		UpdatedAt:	 time.Now(),
+	}
+
+	if err := u.storeRepo.Create(ctx, store); err != nil {
+		return nil, err
+	}
+
+	// メールを送信（エラーが発生してもAPIのレスポンスには影響させない）
+	if u.emailService != nil {
+		subject := "店舗登録が完了しました"
+		body := "店舗登録ありがとうございます。以下のリンクからサービスにアクセスしてください。\n <a href=\"https://meguru.com/login\">サービスにアクセス</a>"
+		if err := u.emailService.SendEmail(req.Email, subject, body); err != nil {
+			// メール送信に失敗してもログに記録するのみ、APIエラーは返さない
+			// TODO: 本来はloggerを使用してログ出力を行う
+			println("メール送信に失敗しました:", err.Error())
+		}
+	}
+
+	// 簡易的なトークン生成（実際の実装では JWT などを使用）
+	token := "temp_token_" + store.ID.String()
+
+	response := &ShopRegisterResponse{
+		Success: true,
+		Message: "店舗登録が完了しました。確認メールを送信しました。",
+	}
+	response.Data.Token = token
+
+	return response, nil
 }
