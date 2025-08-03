@@ -1,0 +1,296 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: '[Final Simplified Version] Go App on App Runner with Aurora Serverless'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: my-go-app
+  AppRunnerCpu:
+    Type: String
+    Default: "1 vCPU"
+  AppRunnerMemory:
+    Type: String
+    Default: "2 GB"
+  AppRunnerMinSize:
+    Type: Number
+    Default: 1
+  AppRunnerMaxSize:
+    Type: Number
+    Default: 3
+  AppRunnerPort:
+    Type: Number
+    Default: 8080
+  ImageRepositoryType:
+    Type: String
+    Default: ECR
+  ImageIdentifier:
+    Type: String
+  DatabaseName:
+    Type: String
+    Default: myappdb
+  DatabaseUsername:
+    Type: String
+    Default: meguru
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+  MinAuroraCapacity:
+    Type: Number
+    Default: 0.5
+  MaxAuroraCapacity:
+    Type: Number
+    Default: 2
+
+Resources:
+  # --- VPC, Subnets, Gateways, Routes, Security Groups ---
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-VPC"
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-PrivateSubnet1"
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.4.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-PrivateSubnet2"
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+  AppRunnerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SG for App Runner, Endpoints, and Lambda
+      VpcId: !Ref VPC
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SG for Aurora Database
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref AppRunnerSecurityGroup
+
+  # --- VPC Endpoints (Full Set) ---
+  S3GatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+      RouteTableIds: [!Ref PrivateRouteTable]
+  ECRApiEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ecr.api"
+      VpcEndpointType: Interface
+      SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      PrivateDnsEnabled: true
+      SecurityGroupIds: [!Ref AppRunnerSecurityGroup]
+  ECRDkrEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ecr.dkr"
+      VpcEndpointType: Interface
+      SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      PrivateDnsEnabled: true
+      SecurityGroupIds: [!Ref AppRunnerSecurityGroup]
+  CloudWatchLogsEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.logs"
+      VpcEndpointType: Interface
+      SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      PrivateDnsEnabled: true
+      SecurityGroupIds: [!Ref AppRunnerSecurityGroup]
+  KMSVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.kms"
+      VpcEndpointType: Interface
+      SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      PrivateDnsEnabled: true
+      SecurityGroupIds: [!Ref AppRunnerSecurityGroup]
+  STSVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.sts"
+      VpcEndpointType: Interface
+      SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      PrivateDnsEnabled: true
+      SecurityGroupIds: [!Ref AppRunnerSecurityGroup]
+  EC2VpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ec2"
+      VpcEndpointType: Interface
+      SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      PrivateDnsEnabled: true
+      SecurityGroupIds: [!Ref AppRunnerSecurityGroup]
+  RDSVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.rds"
+      VpcEndpointType: Interface
+      SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      PrivateDnsEnabled: true
+      SecurityGroupIds: [!Ref AppRunnerSecurityGroup]
+
+  # --- Aurora Serverless v2 (Simplified and Final Version) ---
+  AuroraDBCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      # ★★★ これが検証エラーを解消する正しい設定です ★★★
+      Engine: aurora-postgresql
+      EngineVersion: '16.6'
+      Port: 5432
+      DBClusterParameterGroupName: "default.aurora-postgresql16" # AWSデフォルトのPGを使用
+      StorageEncrypted: true                # GUIの成功例に合わせて暗号化を有効化
+
+      # --- 以下は既存の正しい設定 ---
+      DatabaseName: !Ref DatabaseName
+      MasterUsername: !Ref DatabaseUsername
+      MasterUserPassword: !Ref DatabasePassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref DatabaseSecurityGroup
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: !Ref MinAuroraCapacity
+        MaxCapacity: !Ref MaxAuroraCapacity
+      DeletionProtection: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-AuroraCluster"
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for Aurora
+      SubnetIds: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+
+  # --- App Runner ---
+  AppRunnerVPCConnector:
+    Type: AWS::AppRunner::VpcConnector
+    Properties:
+      Subnets: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      SecurityGroups: [!Ref AppRunnerSecurityGroup]
+  AppRunnerECRAccessRole:
+    Type: AWS::IAM::Role
+    Condition: IsECRPrivate
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - {Effect: Allow, Principal: {Service: build.apprunner.amazonaws.com}, Action: sts:AssumeRole}
+      Policies:
+        - PolicyName: AppRunnerECRAccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - {Effect: Allow, Action: ["ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage", "ecr:BatchCheckLayerAvailability", "ecr:DescribeImages", "ecr:GetAuthorizationToken"], Resource: "*"}
+  AppRunnerService:
+    Type: AWS::AppRunner::Service
+    DependsOn: AuroraDBCluster
+    Properties:
+      ServiceName: !Sub "${ProjectName}-service"
+      SourceConfiguration:
+        ImageRepository:
+          ImageIdentifier: !Ref ImageIdentifier
+          ImageRepositoryType: !Ref ImageRepositoryType
+          ImageConfiguration:
+            Port: !Ref AppRunnerPort
+            RuntimeEnvironmentVariables:
+              - {Name: DB_HOST, Value: !GetAtt AuroraDBCluster.Endpoint.Address}
+              - {Name: DB_PORT, Value: !GetAtt AuroraDBCluster.Endpoint.Port}
+              - {Name: DB_USER, Value: !Ref DatabaseUsername}
+              - {Name: DB_PASSWORD, Value: !Ref DatabasePassword}
+              - {Name: DB_NAME, Value: !Ref DatabaseName}
+              - {Name: GIN_MODE, Value: release}
+        AutoDeploymentsEnabled: true
+        AuthenticationConfiguration:
+          AccessRoleArn: !If [IsECRPrivate, !GetAtt AppRunnerECRAccessRole.Arn, !Ref "AWS::NoValue"]
+      InstanceConfiguration: {Cpu: !Ref AppRunnerCpu, Memory: !Ref AppRunnerMemory}
+      NetworkConfiguration:
+        EgressConfiguration: {EgressType: VPC, VpcConnectorArn: !Ref AppRunnerVPCConnector}
+        IngressConfiguration: {IsPubliclyAccessible: true}
+      AutoScalingConfigurationArn: !Ref AppRunnerASConfig
+  AppRunnerASConfig:
+    Type: AWS::AppRunner::AutoScalingConfiguration
+    Properties: {AutoScalingConfigurationName: !Sub "${ProjectName}-as-config", MinSize: !Ref AppRunnerMinSize, MaxSize: !Ref AppRunnerMaxSize}
+
+Conditions:
+  IsECRPrivate: !Equals [!Ref ImageRepositoryType, "ECR"]
+
+Outputs:
+  AppRunnerServiceUrl:
+    Description: URL of the App Runner service
+    Value: !GetAtt AppRunnerService.ServiceUrl
+  AuroraDBClusterEndpoint:
+    Description: Endpoint address for the Aurora DB cluster
+    Value: !GetAtt AuroraDBCluster.Endpoint.Address

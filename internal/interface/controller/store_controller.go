@@ -2,10 +2,12 @@ package controller
 
 import (
 	"net/http"
+	"strings"
 
 	"meguru-backend/internal/usecase"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"errors"
 )
 
 type StoreController struct {
@@ -66,4 +68,115 @@ func (sc *StoreController) GetAllStores(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": stores})
+}
+
+// 店舗登録用の新しいハンドラーメソッド
+func (sc *StoreController) RegisterShop(c *gin.Context) {
+	var req usecase.ShopRegisterRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	response, err := sc.storeUsecase.RegisterShop(c.Request.Context(), &req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, response)
+}
+
+// 店舗ログイン用のハンドラーメソッド
+func (sc *StoreController) SignIn(c *gin.Context) {
+	var req usecase.StoreSignInRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	response, err := sc.storeUsecase.SignIn(c.Request.Context(), &req)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// Authorization ヘッダーからトークンを取得するヘルパー関数
+func (sc *StoreController) getTokenFromHeader(c *gin.Context) (string, error) {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		return "", errors.New("authorization header required")
+	}
+
+	// "Bearer " プレフィックスを削除
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		return strings.TrimPrefix(authHeader, "Bearer "), nil
+	}
+
+	return "", errors.New("invalid authorization header format")
+}
+
+// 現在ログイン中の店舗プロフィール取得
+func (sc *StoreController) GetProfile(c *gin.Context) {
+	token, err := sc.getTokenFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	profile, err := sc.storeUsecase.GetProfile(c.Request.Context(), token)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": profile})
+}
+
+// 現在ログイン中の店舗プロフィール更新
+func (sc *StoreController) UpdateProfile(c *gin.Context) {
+	token, err := sc.getTokenFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req usecase.StoreUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	profile, err := sc.storeUsecase.UpdateProfile(c.Request.Context(), token, &req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": profile})
+}
+
+// VerifyEmail メールアドレス認証エンドポイント
+func (sc *StoreController) VerifyEmail(c *gin.Context) {
+	token := c.Query("token")
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "トークンが必要です"})
+		return
+	}
+
+	err := sc.storeUsecase.VerifyEmail(c.Request.Context(), token)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "メールアドレスの認証が完了しました。ログインしてサービスをご利用ください。",
+	})
 }
