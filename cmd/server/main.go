@@ -74,7 +74,7 @@ func main() {
 	healthUsecase := usecase.NewHealthUsecase()
 	storeUsecase := usecase.NewStoreUsecase(storeRepo, emailService)
 	pushSubscriptionUsecase := usecase.NewPushSubscriptionUsecase(pushSubscriptionRepo, webPushService)
-	flyerUsecase := usecase.NewFlyerUsecase(flyerRepo)
+	flyerUsecase := usecase.NewFlyerUsecase(flyerRepo, storeRepo)
 
 	// Initialize controllers
 	userController := controller.NewUserController(userUsecase)

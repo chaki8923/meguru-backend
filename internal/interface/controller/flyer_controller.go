@@ -3,6 +3,8 @@ package controller
 import (
 	"log"
 	"net/http"
+	"strings"
+	"errors"
 
 	"meguru-backend/internal/usecase"
 
@@ -17,8 +19,37 @@ func NewFlyerController(flyerUsecase *usecase.FlyerUsecase) *FlyerController {
 	return &FlyerController{flyerUsecase: flyerUsecase}
 }
 
+// Authorization ヘッダーからトークンを取得するヘルパー関数
+func (fc *FlyerController) getTokenFromHeader(c *gin.Context) (string, error) {
+	authHeader := c.GetHeader("Authorization")
+	log.Printf("Received Authorization header: '%s'", authHeader) // デバッグログ
+	
+	if authHeader == "" {
+		log.Println("Authorization header is empty") // デバッグログ
+		return "", errors.New("authorization header required")
+	}
+
+	// "Bearer " プレフィックスを削除
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+		log.Printf("Extracted token: '%s'", token) // デバッグログ
+		return token, nil
+	}
+
+	log.Println("Invalid authorization header format") // デバッグログ
+	return "", errors.New("invalid authorization header format")
+}
+
 func (c *FlyerController) UploadFlyer(ctx *gin.Context) {
 	log.Println("UploadFlyer controller is called")
+
+	// 認証チェック（UpdateProfileと同じパターン）
+	token, err := c.getTokenFromHeader(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	file, err := ctx.FormFile("flyer_image")
 	if err != nil {
 		log.Printf("Error getting form file: %v", err)
@@ -27,14 +58,16 @@ func (c *FlyerController) UploadFlyer(ctx *gin.Context) {
 	}
 
 	log.Println("Successfully received the flyer image")
-	flyerResponse, err := c.flyerUsecase.AnalyzeAndSaveFlyer(ctx.Request.Context(), file)
+	
+	// ログイン中の店舗情報を更新
+	flyerResponse, err := c.flyerUsecase.AnalyzeAndUpdateStoreFromFlyer(ctx.Request.Context(), file, token)
 	if err != nil {
 		log.Printf("Error in flyer usecase: %v", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	log.Println("Successfully analyzed and saved the flyer")
+	log.Println("Successfully analyzed flyer and updated store information")
 	ctx.JSON(http.StatusOK, gin.H{"data": flyerResponse})
 }
 
