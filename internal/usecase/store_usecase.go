@@ -214,13 +214,13 @@ func (u *StoreUsecase) RegisterShop(ctx context.Context, req *ShopRegisterReques
 		}
 	} else if u.emailService != nil {
 		// 従来のメール送信（認証機能無効時）
-		subject := "【めぐる】店舗登録が完了しました"
+		subject := "【meguru】店舗登録が完了しました"
 		body := `
 <html>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
 	<div style="max-width: 600px; margin: 0 auto; padding: 20px;">
 		<div style="background: linear-gradient(135deg, #ff7849, #ff6b35); padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 30px;">
-			<h1 style="color: white; margin: 0; font-size: 24px;">めぐるへようこそ！</h1>
+			<h1 style="color: white; margin: 0; font-size: 24px;">meguruへようこそ！</h1>
 			<p style="color: #fff3f0; margin: 10px 0 0 0;">店舗登録が完了しました</p>
 		</div>
 		
@@ -234,7 +234,7 @@ func (u *StoreUsecase) RegisterShop(ctx context.Context, req *ShopRegisterReques
 		</div>
 		
 		<div style="text-align: center; margin: 30px 0;">
-			<a href="http://localhost:3000/login" 
+			<a href="http://localhost:3000/verify-email" 
 			   style="background: linear-gradient(135deg, #ff7849, #ff6b35); 
 			          color: white; 
 			          padding: 15px 30px; 
@@ -257,7 +257,7 @@ func (u *StoreUsecase) RegisterShop(ctx context.Context, req *ShopRegisterReques
 		
 		<div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #666; font-size: 12px;">
 			<p>このメールに心当たりがない場合は、このメールを無視してください。</p>
-			<p style="margin-top: 15px;">© 2025 めぐる. All rights reserved.</p>
+			<p style="margin-top: 15px;">© 2025 meguru. All rights reserved.</p>
 		</div>
 	</div>
 </body>
@@ -301,16 +301,16 @@ func (u *StoreUsecase) sendVerificationEmail(ctx context.Context, store *entity.
 	}
 
 	// 認証URLを生成
-	verifyURL := fmt.Sprintf("http://localhost:3000/store/verify-email?token=%s", token)
+	verifyURL := fmt.Sprintf("http://localhost:3000/verify-email?token=%s", token)
 
 	// メール本文を作成
-	subject := "【めぐる】メールアドレスの認証が必要です"
+	subject := "【meguru】メールアドレスの認証が必要です"
 	body := fmt.Sprintf(`
 <html>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
 	<div style="max-width: 600px; margin: 0 auto; padding: 20px;">
 		<div style="background: linear-gradient(135deg, #ff7849, #ff6b35); padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 30px;">
-			<h1 style="color: white; margin: 0; font-size: 24px;">めぐるへようこそ！</h1>
+			<h1 style="color: white; margin: 0; font-size: 24px;">meguruへようこそ！</h1>
 			<p style="color: #fff3f0; margin: 10px 0 0 0;">メールアドレスの認証をお願いします</p>
 		</div>
 		
@@ -347,7 +347,7 @@ func (u *StoreUsecase) sendVerificationEmail(ctx context.Context, store *entity.
 		
 		<div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #666; font-size: 12px;">
 			<p>このメールに心当たりがない場合は、このメールを無視してください。</p>
-			<p style="margin-top: 15px;">© 2025 めぐる. All rights reserved.</p>
+			<p style="margin-top: 15px;">© 2025 meguru. All rights reserved.</p>
 		</div>
 	</div>
 </body>
