@@ -66,6 +66,27 @@ func (r *storeRepository) FindByID(ctx context.Context, id uuid.UUID) (*entity.S
 	return store, nil
 }
 
+func (r *storeRepository) FindByEmail(ctx context.Context, email string) (*entity.Store, error) {
+	query := `
+		SELECT id, name, email, password, phone_number, zipcode, prefecture, city, street, created_at, updated_at
+		FROM stores
+		WHERE email = $1`
+
+	store := &entity.Store{}
+	err := r.db.QueryRowContext(ctx, query, email).Scan(
+		&store.ID, &store.Name, &store.Email, &store.Password, &store.PhoneNumber, &store.Zipcode,
+		&store.Prefecture, &store.City, &store.Street, &store.CreatedAt, &store.UpdatedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return store, nil
+}
+
 func (r *storeRepository) FindAll(ctx context.Context) ([]*entity.Store, error) {
 	query := `
 		SELECT id, name, email, password, phone_number, zipcode, prefecture, city, street, created_at, updated_at

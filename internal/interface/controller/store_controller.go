@@ -85,3 +85,21 @@ func (sc *StoreController) RegisterShop(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, response)
 }
+
+// 店舗ログイン用のハンドラーメソッド
+func (sc *StoreController) SignIn(c *gin.Context) {
+	var req usecase.StoreSignInRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	response, err := sc.storeUsecase.SignIn(c.Request.Context(), &req)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
