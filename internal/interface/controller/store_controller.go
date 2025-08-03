@@ -160,3 +160,23 @@ func (sc *StoreController) UpdateProfile(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"data": profile})
 }
+
+// VerifyEmail メールアドレス認証エンドポイント
+func (sc *StoreController) VerifyEmail(c *gin.Context) {
+	token := c.Query("token")
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "トークンが必要です"})
+		return
+	}
+
+	err := sc.storeUsecase.VerifyEmail(c.Request.Context(), token)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "メールアドレスの認証が完了しました。ログインしてサービスをご利用ください。",
+	})
+}

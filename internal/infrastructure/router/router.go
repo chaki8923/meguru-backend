@@ -26,6 +26,7 @@ func NewRouter(userController *controller.UserController, healthController *cont
 	store := r.Group("/store")
 	{
 		store.POST("/shopRegister", storeController.RegisterShop)
+		store.GET("/verify-email", storeController.VerifyEmail) // メール認証エンドポイント
 	}
 
 	// API routes

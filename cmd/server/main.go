@@ -57,6 +57,7 @@ func main() {
 
 	userRepo := infraDB.NewUserRepository(db)
 	storeRepo := infraDB.NewStoreRepository(db)
+	storeTokenRepo := infraDB.NewStoreEmailVerificationTokenRepository(db)
 	pushSubscriptionRepo := infraDB.NewPushSubscriptionRepository(db)
 	flyerRepo := infraDB.NewFlyerRepository(db)
 	productRepo := infraDB.NewProductRepository(db)
@@ -74,10 +75,13 @@ func main() {
 	// Initialize R2 storage service
 	r2Service := storage.NewR2Service()
 
+	// メール認証機能の有効/無効を環境変数から取得（デフォルトは無効）
+	enableEmailVerification := os.Getenv("ENABLE_EMAIL_VERIFICATION") == "true"
+
 	// Initialize use cases
 	userUsecase := usecase.NewUserUsecase(userRepo)
 	healthUsecase := usecase.NewHealthUsecase()
-	storeUsecase := usecase.NewStoreUsecase(storeRepo, emailService)
+	storeUsecase := usecase.NewStoreUsecase(storeRepo, storeTokenRepo, emailService, enableEmailVerification)
 	pushSubscriptionUsecase := usecase.NewPushSubscriptionUsecase(pushSubscriptionRepo, webPushService)
 	flyerUsecase := usecase.NewFlyerUsecase(flyerRepo, storeRepo, productRepo)
 	productUsecase := usecase.NewProductUsecase(productRepo, storeRepo, r2Service)
