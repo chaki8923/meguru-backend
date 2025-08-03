@@ -628,6 +628,120 @@ docker compose exec app migrate -path ./scripts/db/migrations -database "${DATAB
 docker compose exec app migrate -path ./scripts/db/migrations -database "${DATABASE_URL}" down
 ```
 
+## チラシ詳細画面のデータベースクエリ
+
+### 店舗に紐づく全チラシ取得クエリ
+
+**エンドポイント**: `GET /api/v1/flyer/all/:store_id`
+
+**実行されるSQL**:
+```sql
+SELECT 
+    f.id, f.image_data, f.created_at, f.updated_at,
+    s.name, s.prefecture, s.city, s.street,
+    c.name, c.start_date, c.end_date,
+    p.name, p.category,
+    fi.price_excluding_tax, fi.price_including_tax, fi.unit, fi.restriction_note
+FROM flyers f
+JOIN campaigns c ON f.id = c.flyer_id
+JOIN campaign_stores cs ON c.id = cs.campaign_id
+JOIN stores s ON cs.store_id = s.id
+LEFT JOIN flyer_items fi ON c.id = fi.campaign_id
+LEFT JOIN products p ON fi.product_id = p.id
+WHERE cs.store_id = $1
+ORDER BY f.created_at DESC, p.name
+```
+
+### テーブル関係図
+
+```
+stores ←→ campaign_stores ←→ campaigns ←→ flyers
+   ↑             ↓              ↓
+   └─────────────┴──── flyer_items ←→ products
+```
+
+### 取得データ構造
+
+#### チラシ情報（flyers）
+- `id`: チラシID
+- `image_data`: base64エンコードされた画像データ
+- `created_at`: 作成日時
+- `updated_at`: 更新日時
+
+#### 店舗情報（stores）
+- `name`: 店舗名
+- `prefecture`: 都道府県
+- `city`: 市区町村
+- `street`: 番地・建物名
+
+#### キャンペーン情報（campaigns）
+- `name`: キャンペーン名
+- `start_date`: 開始日
+- `end_date`: 終了日
+
+#### 商品情報（products + flyer_items）
+- `name`: 商品名（productsテーブル）
+- `category`: 商品カテゴリ（productsテーブル）
+- `price_excluding_tax`: 税抜価格（flyer_itemsテーブル）
+- `price_including_tax`: 税込価格（flyer_itemsテーブル）
+- `unit`: 単位（flyer_itemsテーブル）
+- `restriction_note`: 注意事項（flyer_itemsテーブル）
+
+### JOINの説明
+
+1. **flyers → campaigns**: チラシとキャンペーンの関連（1対1）
+2. **campaigns → campaign_stores**: キャンペーンと店舗の関連（多対多の中間テーブル）
+3. **campaign_stores → stores**: 店舗情報の取得（多対1）
+4. **campaigns → flyer_items**: キャンペーンの商品情報（1対多）
+5. **flyer_items → products**: 商品マスター情報（多対1）
+
+### 重要なポイント
+
+- **画像データ**: データベースではバイナリで保存、APIではbase64エンコードで返却
+- **複数チラシ対応**: 同一店舗の全チラシを作成日時の降順で取得
+- **商品情報**: productsテーブルから正確な商品名・カテゴリを取得
+- **NULLデータ対応**: LEFT JOINによりチラシに商品が紐づかない場合も取得可能
+
+### レスポンス例
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid-string",
+      "store_id": "store-uuid",
+      "image_data": "base64-encoded-image-string",
+      "flyer_data": {
+        "store": {
+          "name": "サンプル店舗",
+          "prefecture": "東京都",
+          "city": "渋谷区",
+          "street": "道玄坂1-1-1"
+        },
+        "campaign": {
+          "name": "春の大売出し",
+          "start_date": "2025-03-01",
+          "end_date": "2025-03-31"
+        },
+        "flyer_items": [
+          {
+            "product": {
+              "name": "特選牛肉",
+              "category": "肉類"
+            },
+            "price_excluding_tax": 980,
+            "price_including_tax": 1058,
+            "unit": "100g",
+            "restriction_note": "おひとり様3パックまで"
+          }
+        ]
+      },
+      "created_at": "2025-01-01T12:00:00Z"
+    }
+  ]
+}
+```
+
 ## 今後の機能
 
 - [ ] ユーザーログイン
