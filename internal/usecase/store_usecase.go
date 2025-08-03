@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"time"
+	"strings"
 
 	"meguru-backend/internal/domain/entity"
 	"meguru-backend/internal/domain/repository"
@@ -80,6 +81,31 @@ type StoreSignInRequest struct {
 // 店舗ログイン用のレスポンス構造体
 type StoreSignInResponse struct {
 	Token string `json:"token"`
+}
+
+// 店舗プロフィール取得用のレスポンス構造体
+type StoreProfileResponse struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Email       string `json:"email"`
+	PhoneNumber string `json:"phone_number"`
+	Zipcode     string `json:"zipcode"`
+	Prefecture  string `json:"prefecture"`
+	City        string `json:"city"`
+	Street      string `json:"street"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
+}
+
+// 店舗情報更新用のリクエスト構造体
+type StoreUpdateRequest struct {
+	Name        string `json:"name" binding:"required"`
+	Email       string `json:"email" binding:"required,email"`
+	PhoneNumber string `json:"phone_number"`
+	Zipcode     string `json:"zipcode"`
+	Prefecture  string `json:"prefecture"`
+	City        string `json:"city"`
+	Street      string `json:"street"`
 }
 
 func NewStoreUsecase(storeRepo repository.StoreRepository, emailService *email.EmailService) *StoreUsecase {
@@ -265,5 +291,97 @@ func (u *StoreUsecase) SignIn(ctx context.Context, req *StoreSignInRequest) (*St
 
 	return &StoreSignInResponse{
 		Token: token,
+	}, nil
+}
+
+// トークンからストアIDを取得するヘルパー関数
+func (u *StoreUsecase) getStoreIDFromToken(token string) (uuid.UUID, error) {
+	// 簡易実装: "auth_token_" または "temp_token_" プレフィックスを削除してUUIDを取得
+	var uuidStr string
+	if strings.HasPrefix(token, "auth_token_") {
+		uuidStr = strings.TrimPrefix(token, "auth_token_")
+	} else if strings.HasPrefix(token, "temp_token_") {
+		uuidStr = strings.TrimPrefix(token, "temp_token_")
+	} else {
+		return uuid.Nil, errors.New("invalid token format")
+	}
+
+	storeID, err := uuid.Parse(uuidStr)
+	if err != nil {
+		return uuid.Nil, errors.New("invalid token")
+	}
+
+	return storeID, nil
+}
+
+// 店舗プロフィール取得
+func (u *StoreUsecase) GetProfile(ctx context.Context, token string) (*StoreProfileResponse, error) {
+	storeID, err := u.getStoreIDFromToken(token)
+	if err != nil {
+		return nil, err
+	}
+
+	store, err := u.storeRepo.FindByID(ctx, storeID)
+	if err != nil {
+		return nil, err
+	}
+	if store == nil {
+		return nil, errors.New("store not found")
+	}
+
+	return &StoreProfileResponse{
+		ID:          store.ID.String(),
+		Name:        store.Name,
+		Email:       store.Email,
+		PhoneNumber: store.PhoneNumber,
+		Zipcode:     store.Zipcode,
+		Prefecture:  store.Prefecture,
+		City:        store.City,
+		Street:      store.Street,
+		CreatedAt:   store.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   store.UpdatedAt.Format(time.RFC3339),
+	}, nil
+}
+
+// 店舗プロフィール更新
+func (u *StoreUsecase) UpdateProfile(ctx context.Context, token string, req *StoreUpdateRequest) (*StoreProfileResponse, error) {
+	storeID, err := u.getStoreIDFromToken(token)
+	if err != nil {
+		return nil, err
+	}
+
+	store, err := u.storeRepo.FindByID(ctx, storeID)
+	if err != nil {
+		return nil, err
+	}
+	if store == nil {
+		return nil, errors.New("store not found")
+	}
+
+	// 店舗情報を更新
+	store.Name = req.Name
+	store.Email = req.Email
+	store.PhoneNumber = req.PhoneNumber
+	store.Zipcode = req.Zipcode
+	store.Prefecture = req.Prefecture
+	store.City = req.City
+	store.Street = req.Street
+	store.UpdatedAt = time.Now()
+
+	if err := u.storeRepo.Update(ctx, store); err != nil {
+		return nil, err
+	}
+
+	return &StoreProfileResponse{
+		ID:          store.ID.String(),
+		Name:        store.Name,
+		Email:       store.Email,
+		PhoneNumber: store.PhoneNumber,
+		Zipcode:     store.Zipcode,
+		Prefecture:  store.Prefecture,
+		City:        store.City,
+		Street:      store.Street,
+		CreatedAt:   store.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   store.UpdatedAt.Format(time.RFC3339),
 	}, nil
 }

@@ -41,6 +41,10 @@ func NewRouter(userController *controller.UserController, healthController *cont
 			stores.GET("", storeController.GetAllStores)
 			stores.PUT("/:id", storeController.UpdateStore)
 			stores.POST("/signin", storeController.SignIn)
+			
+			// 認証が必要なエンドポイント
+			stores.GET("/profile", storeController.GetProfile)
+			stores.PUT("/profile", storeController.UpdateProfile)
 		}
 		notifications := api.Group("/notifications")
 		{

@@ -2,10 +2,12 @@ package controller
 
 import (
 	"net/http"
+	"strings"
 
 	"meguru-backend/internal/usecase"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"errors"
 )
 
 type StoreController struct {
@@ -102,4 +104,59 @@ func (sc *StoreController) SignIn(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+// Authorization ヘッダーからトークンを取得するヘルパー関数
+func (sc *StoreController) getTokenFromHeader(c *gin.Context) (string, error) {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		return "", errors.New("authorization header required")
+	}
+
+	// "Bearer " プレフィックスを削除
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		return strings.TrimPrefix(authHeader, "Bearer "), nil
+	}
+
+	return "", errors.New("invalid authorization header format")
+}
+
+// 現在ログイン中の店舗プロフィール取得
+func (sc *StoreController) GetProfile(c *gin.Context) {
+	token, err := sc.getTokenFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	profile, err := sc.storeUsecase.GetProfile(c.Request.Context(), token)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": profile})
+}
+
+// 現在ログイン中の店舗プロフィール更新
+func (sc *StoreController) UpdateProfile(c *gin.Context) {
+	token, err := sc.getTokenFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req usecase.StoreUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	profile, err := sc.storeUsecase.UpdateProfile(c.Request.Context(), token, &req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": profile})
 }
