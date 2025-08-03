@@ -106,3 +106,40 @@ func (c *FlyerController) GetFlyerByStoreID(ctx *gin.Context) {
 	log.Printf("Successfully retrieved flyer for store ID: %s", storeID)
 	ctx.JSON(http.StatusOK, gin.H{"data": flyerResponse})
 }
+
+// GetAllFlyersByStoreID retrieves all flyers for a specific store ID
+func (c *FlyerController) GetAllFlyersByStoreID(ctx *gin.Context) {
+	storeID := ctx.Param("store_id")
+	log.Printf("GetAllFlyersByStoreID called with storeID: %s", storeID)
+
+	// panic回復
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Panic in GetAllFlyersByStoreID: %v", r)
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		}
+	}()
+
+	if c.flyerUsecase == nil {
+		log.Printf("FlyerUsecase is nil")
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Usecase not initialized"})
+		return
+	}
+
+	log.Printf("Calling FlyerUsecase.GetAllFlyersByStoreID")
+	flyerResponses, err := c.flyerUsecase.GetAllFlyersByStoreID(ctx.Request.Context(), storeID)
+	if err != nil {
+		log.Printf("Error in GetAllFlyersByStoreID usecase: %v", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(flyerResponses) == 0 {
+		log.Printf("No flyers found for store ID: %s", storeID)
+		ctx.JSON(http.StatusOK, gin.H{"data": []interface{}{}}) // Return empty array instead of 404
+		return
+	}
+
+	log.Printf("Successfully retrieved %d flyers for store ID: %s", len(flyerResponses), storeID)
+	ctx.JSON(http.StatusOK, gin.H{"data": flyerResponses})
+}

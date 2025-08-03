@@ -55,6 +55,7 @@ func NewRouter(userController *controller.UserController, healthController *cont
 		{
 			flyer.POST("/upload", flyerController.UploadFlyer)
 			flyer.GET("/:store_id", flyerController.GetFlyerByStoreID)
+			flyer.GET("/all/:store_id", flyerController.GetAllFlyersByStoreID)
 		}
 		
 		// 商品関連のエンドポイント（認証必須）

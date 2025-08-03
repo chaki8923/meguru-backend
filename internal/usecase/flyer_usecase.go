@@ -441,3 +441,37 @@ JSON構造:
 	return &flyerData, nil
 }
 
+// GetAllFlyersByStoreID retrieves all flyers for a specific store ID
+func (u *FlyerUsecase) GetAllFlyersByStoreID(ctx context.Context, storeID string) ([]*FlyerResponse, error) {
+	log.Printf("FlyerUsecase: Getting all flyers for storeID: %s", storeID)
+
+	// Get all flyers from repository
+	flyers, flyerDataList, err := u.flyerRepository.GetAllFlyersByStoreID(ctx, storeID)
+	if err != nil {
+		log.Printf("FlyerUsecase: Error getting all flyers from repository: %v", err)
+		return nil, fmt.Errorf("failed to get all flyers from repository: %w", err)
+	}
+
+	if len(flyers) == 0 {
+		log.Printf("FlyerUsecase: No flyers found for storeID: %s", storeID)
+		return []*FlyerResponse{}, nil // Return empty slice instead of nil
+	}
+
+	// Convert to response format
+	responses := make([]*FlyerResponse, len(flyers))
+	for i, flyer := range flyers {
+		imageDataStr := base64.StdEncoding.EncodeToString(flyer.ImageData)
+		
+		responses[i] = &FlyerResponse{
+			ID:        flyer.ID.String(),
+			StoreID:   storeID,
+			ImageData: imageDataStr,
+			FlyerData: flyerDataList[i],
+			CreatedAt: flyer.CreatedAt,
+		}
+	}
+
+	log.Printf("FlyerUsecase: Successfully retrieved %d flyers for storeID: %s", len(responses), storeID)
+	return responses, nil
+}
+

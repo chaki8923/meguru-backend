@@ -306,3 +306,144 @@ func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID str
 	flyerData.FlyerItemsInfo = items
 	return flyer, flyerData, nil
 }
+
+// GetAllFlyersByStoreID retrieves all flyers for a specific store ID
+func (r *FlyerRepositoryImpl) GetAllFlyersByStoreID(ctx context.Context, storeID string) ([]*entity.Flyer, []*dto.FlyerData, error) {
+	log.Printf("FlyerRepository: Getting all flyers for storeID: %s", storeID)
+
+	// Use the same query structure as GetFlyerByStoreID but remove LIMIT 1
+	query := `
+		SELECT 
+			f.id, f.image_data, f.created_at, f.updated_at,
+			s.name, s.prefecture, s.city, s.street,
+			c.name, c.start_date, c.end_date,
+			p.name, p.category,
+			fi.price_excluding_tax, fi.price_including_tax, fi.unit, fi.restriction_note
+		FROM flyers f
+		JOIN campaigns c ON f.id = c.flyer_id
+		JOIN campaign_stores cs ON c.id = cs.campaign_id
+		JOIN stores s ON cs.store_id = s.id
+		LEFT JOIN flyer_items fi ON c.id = fi.campaign_id
+		LEFT JOIN products p ON fi.product_id = p.id
+		WHERE cs.store_id = $1
+		ORDER BY f.created_at DESC, p.name
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, storeID)
+	if err != nil {
+		log.Printf("FlyerRepository: Failed to execute query for storeID %s: %v", storeID, err)
+		return nil, nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+	defer rows.Close()
+
+	flyerMap := make(map[string]*entity.Flyer)
+	flyerDataMap := make(map[string]*dto.FlyerData)
+	flyerOrder := []string{} // To maintain order
+
+	for rows.Next() {
+		log.Printf("FlyerRepository: Processing row for storeID %s", storeID)
+
+		var flyerID, imageData, storeName, prefecture, city, street string
+		var createdAt, updatedAt time.Time
+		var campaignName sql.NullString
+		var startDate, endDate sql.NullTime
+		var productName, productCategory, unit, restrictionNote sql.NullString
+		var priceExcludingTax, priceIncludingTax sql.NullInt64
+
+		err := rows.Scan(
+			&flyerID, &imageData, &createdAt, &updatedAt,
+			&storeName, &prefecture, &city, &street,
+			&campaignName, &startDate, &endDate,
+			&productName, &productCategory,
+			&priceExcludingTax, &priceIncludingTax,
+			&unit, &restrictionNote,
+		)
+		if err != nil {
+			log.Printf("FlyerRepository: Failed to scan row for storeID %s: %v", storeID, err)
+			return nil, nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		// Initialize flyer if not exists
+		if _, exists := flyerMap[flyerID]; !exists {
+			parsedID, err := uuid.Parse(flyerID)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to parse flyer ID: %w", err)
+			}
+
+			flyerMap[flyerID] = &entity.Flyer{
+				ID:        parsedID,
+				ImageData: []byte(imageData),
+				CreatedAt: createdAt,
+				UpdatedAt: updatedAt,
+			}
+
+			flyerDataMap[flyerID] = &dto.FlyerData{
+				StoreInfo: dto.Store{
+					Name:       storeName,
+					Prefecture: prefecture,
+					City:       city,
+					Street:     street,
+				},
+				CampaignInfo: dto.Campaign{
+					Name: "",
+					StartDate: "",
+					EndDate: "",
+				},
+				FlyerItemsInfo: []dto.FlyerItem{},
+			}
+
+			flyerOrder = append(flyerOrder, flyerID)
+		}
+
+		flyerData := flyerDataMap[flyerID]
+
+		// Set campaign info (only once per flyer)
+		if campaignName.Valid && flyerData.CampaignInfo.Name == "" {
+			flyerData.CampaignInfo.Name = campaignName.String
+			if startDate.Valid {
+				flyerData.CampaignInfo.StartDate = startDate.Time.Format("2006-01-02")
+			} else {
+				flyerData.CampaignInfo.StartDate = ""
+			}
+			if endDate.Valid {
+				flyerData.CampaignInfo.EndDate = endDate.Time.Format("2006-01-02")
+			} else {
+				flyerData.CampaignInfo.EndDate = ""
+			}
+		}
+
+		// Add product if exists
+		if productName.Valid {
+			flyerData.FlyerItemsInfo = append(flyerData.FlyerItemsInfo, dto.FlyerItem{
+				Product: dto.Product{
+					Name:     productName.String,
+					Category: productCategory.String,
+				},
+				PriceExcludingTax: int(priceExcludingTax.Int64),
+				PriceIncludingTax: int(priceIncludingTax.Int64),
+				Unit:              unit.String,
+				RestrictionNote:   restrictionNote.String,
+			})
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	if len(flyerMap) == 0 {
+		return []*entity.Flyer{}, []*dto.FlyerData{}, nil // No flyers found
+	}
+
+	// Convert maps to slices in order
+	flyers := make([]*entity.Flyer, len(flyerOrder))
+	flyerDataList := make([]*dto.FlyerData, len(flyerOrder))
+	
+	for i, flyerID := range flyerOrder {
+		flyers[i] = flyerMap[flyerID]
+		flyerDataList[i] = flyerDataMap[flyerID]
+	}
+
+	log.Printf("FlyerRepository: Successfully retrieved %d flyers for storeID: %s", len(flyers), storeID)
+	return flyers, flyerDataList, nil
+}
