@@ -73,17 +73,36 @@ func (c *FlyerController) UploadFlyer(ctx *gin.Context) {
 
 func (c *FlyerController) GetFlyerByStoreID(ctx *gin.Context) {
 	storeID := ctx.Param("store_id")
+	log.Printf("GetFlyerByStoreID called with storeID: %s", storeID)
 
+	// panic回復
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Panic in GetFlyerByStoreID: %v", r)
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		}
+	}()
+
+	if c.flyerUsecase == nil {
+		log.Printf("FlyerUsecase is nil")
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Usecase not initialized"})
+		return
+	}
+
+	log.Printf("Calling FlyerUsecase.GetFlyerByStoreID")
 	flyerResponse, err := c.flyerUsecase.GetFlyerByStoreID(ctx.Request.Context(), storeID)
 	if err != nil {
+		log.Printf("Error in GetFlyerByStoreID usecase: %v", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	if flyerResponse == nil {
+		log.Printf("No flyer found for store ID: %s", storeID)
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "No flyer found for this store"})
 		return
 	}
 
+	log.Printf("Successfully retrieved flyer for store ID: %s", storeID)
 	ctx.JSON(http.StatusOK, gin.H{"data": flyerResponse})
 }

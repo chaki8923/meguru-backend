@@ -240,7 +240,7 @@ func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID str
 		var createdAt, updatedAt time.Time
 		var storeName, storePrefecture, storeCity, storeStreet string
 		var campaignName string
-		var startDate, endDate time.Time
+		var startDate, endDate sql.NullTime  // time.Time から sql.NullTime に変更
 		var productName, productCategory, unit, restrictionNote sql.NullString
 		var priceExcludingTax, priceIncludingTax sql.NullInt64
 
@@ -266,8 +266,19 @@ func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID str
 			flyerData.StoreInfo.City = storeCity
 			flyerData.StoreInfo.Street = storeStreet
 			flyerData.CampaignInfo.Name = campaignName
-			flyerData.CampaignInfo.StartDate = startDate.Format("2006-01-02")
-			flyerData.CampaignInfo.EndDate = endDate.Format("2006-01-02")
+			
+			// sql.NullTime を適切に処理
+			if startDate.Valid {
+				flyerData.CampaignInfo.StartDate = startDate.Time.Format("2006-01-02")
+			} else {
+				flyerData.CampaignInfo.StartDate = ""
+			}
+			
+			if endDate.Valid {
+				flyerData.CampaignInfo.EndDate = endDate.Time.Format("2006-01-02")
+			} else {
+				flyerData.CampaignInfo.EndDate = ""
+			}
 		}
 
 		if productName.Valid {
