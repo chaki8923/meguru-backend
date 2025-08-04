@@ -520,11 +520,3 @@ func (u *StoreUsecase) UpdateProfile(ctx context.Context, token string, req *Sto
 		UpdatedAt:   store.UpdatedAt.Format(time.RFC3339),
 	}, nil
 }
-
-func (u *StoreUsecase) GetStore(ctx context.Context, id uuid.UUID) (*entity.Store, error) {
-	return u.storeRepo.FindByID(ctx, id)
-}
-
-func (u *StoreUsecase) GetAllStores(ctx context.Context) ([]*entity.Store, error) {
-	return u.storeRepo.FindAll(ctx)
-}
