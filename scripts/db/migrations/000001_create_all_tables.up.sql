@@ -16,8 +16,8 @@ CREATE TABLE users (
 CREATE TABLE stores (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255),
-    email VARCHAR(255),
-    password VARCHAR(255),
+    email VARCHAR(255) UNIQUE,
+    password_hash VARCHAR(255),
     phone_number VARCHAR(255),
     zipcode VARCHAR(255),
     prefecture VARCHAR(255),

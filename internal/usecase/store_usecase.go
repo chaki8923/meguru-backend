@@ -121,18 +121,24 @@ func NewStoreUsecase(storeRepo repository.StoreRepository, storeTokenRepo reposi
 }
 
 func (u *StoreUsecase) CreateStore(ctx context.Context, req *CreateStoreRequest) (*CreateStoreResponse, error) {
+	// パスワードをハッシュ化
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
 	store := &entity.Store{
-		ID:          uuid.New(),
-		Name:        req.Name,
-		Email:       req.Email,
-		Password:    req.Password, // Note: In a real application, hash the password
-		PhoneNumber: req.PhoneNumber,
-		Zipcode:     req.Zipcode,
-		Prefecture:  req.Prefecture,
-		City:        req.City,
-		Street:      req.Street,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		ID:           uuid.New(),
+		Name:         req.Name,
+		Email:        req.Email,
+		PasswordHash: string(hashedPassword),
+		PhoneNumber:  req.PhoneNumber,
+		Zipcode:      req.Zipcode,
+		Prefecture:   req.Prefecture,
+		City:         req.City,
+		Street:       req.Street,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
 	}
 
 	if err := u.storeRepo.Create(ctx, store); err != nil {
@@ -197,7 +203,7 @@ func (u *StoreUsecase) RegisterShop(ctx context.Context, req *ShopRegisterReques
 	store := &entity.Store{
 		ID:		 uuid.New(),
 		Email:		 req.Email,
-		Password:	 string(hashedPassword),
+		PasswordHash:	 string(hashedPassword),
 		CreatedAt:	 time.Now(),
 		UpdatedAt:	 time.Now(),
 	}
@@ -412,7 +418,7 @@ func (u *StoreUsecase) SignIn(ctx context.Context, req *StoreSignInRequest) (*St
 	}
 
 	// パスワードを検証
-	if err := bcrypt.CompareHashAndPassword([]byte(store.Password), []byte(req.Password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(store.PasswordHash), []byte(req.Password)); err != nil {
 		return nil, errors.New("invalid email or password")
 	}
 
@@ -519,12 +525,4 @@ func (u *StoreUsecase) UpdateProfile(ctx context.Context, token string, req *Sto
 		CreatedAt:   store.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:   store.UpdatedAt.Format(time.RFC3339),
 	}, nil
-}
-
-func (u *StoreUsecase) GetStore(ctx context.Context, id uuid.UUID) (*entity.Store, error) {
-	return u.storeRepo.FindByID(ctx, id)
-}
-
-func (u *StoreUsecase) GetAllStores(ctx context.Context) ([]*entity.Store, error) {
-	return u.storeRepo.FindAll(ctx)
 }

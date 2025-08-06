@@ -10,7 +10,7 @@ type Store struct {
 	ID               uuid.UUID  `json:"id"`
 	Name             string     `json:"name"`
 	Email            string     `json:"email"`
-	Password         string     `json:"-"`
+	PasswordHash     string     `json:"-"`
 	PhoneNumber      string     `json:"phone_number"`
 	Zipcode          string     `json:"zipcode"`
 	Prefecture       string     `json:"prefecture"`

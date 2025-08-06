@@ -41,6 +41,13 @@ Parameters:
   MaxAuroraCapacity:
     Type: Number
     Default: 2
+  EnableDeletionProtection:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: "Enable deletion protection for Aurora cluster. Set to 'true' for production environments."
 
 Resources:
   # --- VPC, Subnets, Gateways, Routes, Security Groups ---
@@ -223,7 +230,7 @@ Resources:
       ServerlessV2ScalingConfiguration:
         MinCapacity: !Ref MinAuroraCapacity
         MaxCapacity: !Ref MaxAuroraCapacity
-      DeletionProtection: false
+      DeletionProtection: !Ref EnableDeletionProtection
       Tags:
         - Key: Name
           Value: !Sub "${ProjectName}-AuroraCluster"
