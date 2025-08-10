@@ -267,7 +267,10 @@ func (u *ProductUsecase) UpdateStoreProduct(ctx context.Context, token string, s
 	// 店舗商品情報を更新
 	storeProduct.Price = req.Price
 	storeProduct.Quantity = req.Quantity
-	storeProduct.ImageURL = req.ImageURL
+	// 画像URLは新しいリクエストに含まれている場合のみ更新
+	if req.ImageURL != "" {
+		storeProduct.ImageURL = req.ImageURL
+	}
 	storeProduct.Status = req.Status
 
 	storeProduct, err = u.productRepository.UpdateStoreProduct(ctx, storeProduct)
