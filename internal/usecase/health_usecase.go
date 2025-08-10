@@ -21,11 +21,7 @@ type HealthResponse struct {
 func (h *HealthUsecase) GetHealthStatus() *HealthResponse {
 	now := time.Now()
 	return &HealthResponse{
-<<<<<<< HEAD
-		Status:    "OKです--",
-=======
-		Status:    "OKです-！！",
->>>>>>> origin/main
+		Status:    "OKです--!!",
 		Service:   "meguru-backend",
 		Timestamp: now.Unix(),
 		Time:      now,

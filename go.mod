@@ -14,10 +14,7 @@ require (
 	github.com/lib/pq v1.10.9
 	golang.org/x/crypto v0.39.0
 	google.golang.org/api v0.240.0
-<<<<<<< HEAD
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
-=======
->>>>>>> origin/main
 )
 
 require (
@@ -44,10 +41,7 @@ require (
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.2 // indirect
-<<<<<<< HEAD
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
-=======
->>>>>>> origin/main
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
