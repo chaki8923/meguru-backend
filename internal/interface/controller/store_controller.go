@@ -69,6 +69,7 @@ func (sc *StoreController) GetAllStores(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"data": stores})
 }
+<<<<<<< HEAD
 
 // 店舗登録用の新しいハンドラーメソッド
 func (sc *StoreController) RegisterShop(c *gin.Context) {
@@ -180,3 +181,5 @@ func (sc *StoreController) VerifyEmail(c *gin.Context) {
 		"message": "メールアドレスの認証が完了しました。ログインしてサービスをご利用ください。",
 	})
 }
+=======
+>>>>>>> origin/main
