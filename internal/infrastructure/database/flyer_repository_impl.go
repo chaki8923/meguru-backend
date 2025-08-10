@@ -86,11 +86,7 @@ func (r *FlyerRepositoryImpl) SaveFlyer(ctx context.Context, flyer *entity.Flyer
 	// 4. Associate Campaign with Store
 	_, err = tx.ExecContext(ctx, "INSERT INTO campaign_stores (campaign_id, store_id) VALUES ($1, $2)", campaignID, storeID)
 	if err != nil {
-<<<<<<< HEAD
 		return nil, uuid.Nil, fmt.Errorf("failed to insert campaign_stores: %w", err)
-=======
-		return nil, uuid.Nil, fmt.Errorf("failed to insert into campaign_stores: %w", err)
->>>>>>> origin/main
 	}
 
 	// 5. Save Products and Flyer Items
@@ -116,18 +112,12 @@ func (r *FlyerRepositoryImpl) SaveFlyer(ctx context.Context, flyer *entity.Flyer
 		}
 	}
 
-<<<<<<< HEAD
 	// Commit transaction
 	if err = tx.Commit(); err != nil {
-=======
-	if err := tx.Commit(); err != nil {
-		log.Printf("Transaction commit failed: %v", err)
->>>>>>> origin/main
 		return nil, uuid.Nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return flyer, storeID, nil
-<<<<<<< HEAD
 }
 
 // 既存の店舗IDにチラシを関連付けて保存するメソッド
@@ -213,8 +203,6 @@ func (r *FlyerRepositoryImpl) SaveFlyerForStore(ctx context.Context, flyer *enti
 	}
 
 	return flyer, storeID, nil
-=======
->>>>>>> origin/main
 }
 
 func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID string) (*entity.Flyer, *dto.FlyerData, error) {
@@ -317,7 +305,6 @@ func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID str
 
 	flyerData.FlyerItemsInfo = items
 	return flyer, flyerData, nil
-<<<<<<< HEAD
 }
 
 // GetAllFlyersByStoreID retrieves all flyers for a specific store ID
@@ -459,6 +446,4 @@ func (r *FlyerRepositoryImpl) GetAllFlyersByStoreID(ctx context.Context, storeID
 
 	log.Printf("FlyerRepository: Successfully retrieved %d flyers for storeID: %s", len(flyers), storeID)
 	return flyers, flyerDataList, nil
-=======
->>>>>>> origin/main
 }

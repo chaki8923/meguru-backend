@@ -10,10 +10,7 @@ import (
 
 type FlyerRepository interface {
 	SaveFlyer(ctx context.Context, flyer *entity.Flyer, flyerData *dto.FlyerData) (*entity.Flyer, uuid.UUID, error)
-<<<<<<< HEAD
 	SaveFlyerForStore(ctx context.Context, flyer *entity.Flyer, flyerData *dto.FlyerData, storeID uuid.UUID) (*entity.Flyer, uuid.UUID, error)
-=======
->>>>>>> origin/main
 	GetFlyerByStoreID(ctx context.Context, storeID string) (*entity.Flyer, *dto.FlyerData, error)
 	GetAllFlyersByStoreID(ctx context.Context, storeID string) ([]*entity.Flyer, []*dto.FlyerData, error)
 }

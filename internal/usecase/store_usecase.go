@@ -22,7 +22,6 @@ type StoreUsecase struct {
 }
 
 type CreateStoreRequest struct {
-<<<<<<< HEAD
 	Name        string `json:"name" binding:"required"`
 	Email       string `json:"email" binding:"required,email"`
 	Password    string `json:"password" binding:"required,min=6"`
@@ -31,23 +30,14 @@ type CreateStoreRequest struct {
 	Prefecture  string `json:"prefecture" binding:"required"`
 	City        string `json:"city" binding:"required"`
 	Street      string `json:"street" binding:"required"`
-=======
-	Name       string `json:"name" binding:"required"`
-	Prefecture string `json:"prefecture" binding:"required"`
-	City       string `json:"city" binding:"required"`
-	Street     string `json:"street" binding:"required"`
->>>>>>> origin/main
 }
 
 type CreateStoreResponse struct {
 	ID         uuid.UUID `json:"id"`
 	Name       string    `json:"name"`
-<<<<<<< HEAD
 	Email      string    `json:"email"`
 	PhoneNumber string   `json:"phone_number"`
 	Zipcode    string    `json:"zipcode"`
-=======
->>>>>>> origin/main
 	Prefecture string    `json:"prefecture"`
 	City       string    `json:"city"`
 	Street     string    `json:"street"`
@@ -131,28 +121,24 @@ func NewStoreUsecase(storeRepo repository.StoreRepository, storeTokenRepo reposi
 }
 
 func (u *StoreUsecase) CreateStore(ctx context.Context, req *CreateStoreRequest) (*CreateStoreResponse, error) {
+	// パスワードをハッシュ化
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
 	store := &entity.Store{
-<<<<<<< HEAD
-		ID:          uuid.New(),
-		Name:        req.Name,
-		Email:       req.Email,
-		Password:    req.Password, // Note: In a real application, hash the password
-		PhoneNumber: req.PhoneNumber,
-		Zipcode:     req.Zipcode,
-		Prefecture:  req.Prefecture,
-		City:        req.City,
-		Street:      req.Street,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-=======
-		ID:         uuid.New(),
-		Name:       req.Name,
-		Prefecture: req.Prefecture,
-		City:       req.City,
-		Street:     req.Street,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
->>>>>>> origin/main
+		ID:           uuid.New(),
+		Name:         req.Name,
+		Email:        req.Email,
+		PasswordHash: string(hashedPassword),
+		PhoneNumber:  req.PhoneNumber,
+		Zipcode:      req.Zipcode,
+		Prefecture:   req.Prefecture,
+		City:         req.City,
+		Street:       req.Street,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
 	}
 
 	if err := u.storeRepo.Create(ctx, store); err != nil {
@@ -160,7 +146,6 @@ func (u *StoreUsecase) CreateStore(ctx context.Context, req *CreateStoreRequest)
 	}
 
 	return &CreateStoreResponse{
-<<<<<<< HEAD
 		ID:          store.ID,
 		Name:        store.Name,
 		Email:       store.Email,
@@ -170,14 +155,6 @@ func (u *StoreUsecase) CreateStore(ctx context.Context, req *CreateStoreRequest)
 		City:        store.City,
 		Street:      store.Street,
 		CreatedAt:   store.CreatedAt,
-=======
-		ID:         store.ID,
-		Name:       store.Name,
-		Prefecture: store.Prefecture,
-		City:       store.City,
-		Street:     store.Street,
-		CreatedAt:  store.CreatedAt,
->>>>>>> origin/main
 	}, nil
 }
 
@@ -204,7 +181,6 @@ func (u *StoreUsecase) UpdateStore(ctx context.Context, id uuid.UUID, req *Updat
 		City:       store.City,
 		Street:     store.Street,
 		UpdatedAt:  store.UpdatedAt,
-<<<<<<< HEAD
 	}, nil
 }
 
@@ -227,7 +203,7 @@ func (u *StoreUsecase) RegisterShop(ctx context.Context, req *ShopRegisterReques
 	store := &entity.Store{
 		ID:		 uuid.New(),
 		Email:		 req.Email,
-		Password:	 string(hashedPassword),
+		PasswordHash:	 string(hashedPassword),
 		CreatedAt:	 time.Now(),
 		UpdatedAt:	 time.Now(),
 	}
@@ -442,7 +418,7 @@ func (u *StoreUsecase) SignIn(ctx context.Context, req *StoreSignInRequest) (*St
 	}
 
 	// パスワードを検証
-	if err := bcrypt.CompareHashAndPassword([]byte(store.Password), []byte(req.Password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(store.PasswordHash), []byte(req.Password)); err != nil {
 		return nil, errors.New("invalid email or password")
 	}
 
@@ -548,15 +524,5 @@ func (u *StoreUsecase) UpdateProfile(ctx context.Context, token string, req *Sto
 		Street:      store.Street,
 		CreatedAt:   store.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:   store.UpdatedAt.Format(time.RFC3339),
-=======
->>>>>>> origin/main
 	}, nil
-}
-
-func (u *StoreUsecase) GetStore(ctx context.Context, id uuid.UUID) (*entity.Store, error) {
-	return u.storeRepo.FindByID(ctx, id)
-}
-
-func (u *StoreUsecase) GetAllStores(ctx context.Context) ([]*entity.Store, error) {
-	return u.storeRepo.FindAll(ctx)
 }
