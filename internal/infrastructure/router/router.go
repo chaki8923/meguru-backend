@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController) *gin.Engine {
+func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, productController *controller.ProductController) *gin.Engine {
 	r := gin.Default()
 
 	// CORS設定
@@ -22,6 +22,13 @@ func NewRouter(userController *controller.UserController, healthController *cont
 	// ヘルスチェックエンドポイント
 	r.GET("/health", healthController.GetHealth)
 
+	// 店舗登録エンドポイント（/store/shopRegister）
+	store := r.Group("/store")
+	{
+		store.POST("/shopRegister", storeController.RegisterShop)
+		store.GET("/verify-email", storeController.VerifyEmail) // メール認証エンドポイント
+	}
+
 	// API routes
 	api := r.Group("/api/v1")
 	{
@@ -34,6 +41,11 @@ func NewRouter(userController *controller.UserController, healthController *cont
 			stores.POST("", storeController.CreateStore)
 			stores.GET("", storeController.GetAllStores)
 			stores.PUT("/:id", storeController.UpdateStore)
+			stores.POST("/signin", storeController.SignIn)
+			
+			// 認証が必要なエンドポイント
+			stores.GET("/profile", storeController.GetProfile)
+			stores.PUT("/profile", storeController.UpdateProfile)
 		}
 		notifications := api.Group("/notifications")
 		{
@@ -44,6 +56,17 @@ func NewRouter(userController *controller.UserController, healthController *cont
 		{
 			flyer.POST("/upload", flyerController.UploadFlyer)
 			flyer.GET("/:store_id", flyerController.GetFlyerByStoreID)
+			flyer.GET("/all/:store_id", flyerController.GetAllFlyersByStoreID)
+		}
+		
+		// 商品関連のエンドポイント（認証必須）
+		products := api.Group("/products")
+		{
+			products.GET("", productController.ListStoreProducts)
+			products.POST("", productController.CreateStoreProduct)
+			products.GET("/:id", productController.GetStoreProduct)
+			products.PUT("/:id", productController.UpdateStoreProduct)
+			products.DELETE("/:id", productController.DeleteStoreProduct)
 		}
 	}
 
