@@ -210,17 +210,42 @@ func (r *ProductRepositoryImpl) GetStoreProductByID(ctx context.Context, id uuid
 	return &storeProduct, nil
 }
 
-func (r *ProductRepositoryImpl) ListStoreProductsByStoreID(ctx context.Context, storeID uuid.UUID) ([]*entity.StoreProduct, error) {
+func (r *ProductRepositoryImpl) ListStoreProductsByStoreID(ctx context.Context, storeID uuid.UUID, includeExpired bool) ([]*entity.StoreProduct, error) {
 	query := `
 		SELECT sp.id, sp.store_id, sp.product_id, sp.price, sp.quantity, sp.image_url, sp.status, sp.created_at, sp.updated_at,
-		       p.id, p.name, p.category, p.created_at, p.updated_at
+			   p.id, p.name, p.category, p.created_at, p.updated_at
 		FROM store_products sp
 		JOIN products p ON sp.product_id = p.id
 		WHERE sp.store_id = $1
-		ORDER BY p.name
 	`
-	
-	rows, err := r.db.QueryContext(ctx, query, storeID)
+	args := []interface{}{storeID}
+
+	if !includeExpired {
+		query += `
+			AND (
+				-- 商品がどのキャンペーンにも属していない場合
+				NOT EXISTS (
+					SELECT 1
+					FROM flyer_items fi
+					WHERE fi.product_id = sp.product_id
+				) OR
+				-- 商品が有効なキャンペーンに属している場合
+				sp.product_id IN (
+					SELECT fi.product_id
+					FROM flyer_items fi
+					JOIN campaigns c ON fi.campaign_id = c.id
+					JOIN flyers f ON c.flyer_id = f.id
+					JOIN campaign_stores cs ON c.id = cs.campaign_id
+					WHERE cs.store_id = $1
+					  AND (f.display_expiry_date IS NULL OR DATE(f.display_expiry_date) >= CURRENT_DATE)
+				)
+			)
+		`
+	}
+
+	query += ` ORDER BY p.name`
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list store products: %w", err)
 	}

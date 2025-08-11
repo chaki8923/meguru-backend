@@ -58,7 +58,13 @@ func (c *ProductController) ListStoreProducts(ctx *gin.Context) {
 		return
 	}
 
-	products, err := c.productUsecase.ListStoreProducts(ctx.Request.Context(), token)
+	includeExpiredStr := ctx.Query("include_expired")
+	includeExpired, err := strconv.ParseBool(includeExpiredStr)
+	if err != nil {
+		includeExpired = false // デフォルトはfalse
+	}
+
+	products, err := c.productUsecase.ListStoreProducts(ctx.Request.Context(), token, includeExpired)
 	if err != nil {
 		log.Printf("Error in product usecase: %v", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

@@ -19,6 +19,6 @@ type ProductRepository interface {
 	UpdateStoreProduct(ctx context.Context, storeProduct *entity.StoreProduct) (*entity.StoreProduct, error)
 	DeleteStoreProduct(ctx context.Context, id uuid.UUID) error
 	GetStoreProductByID(ctx context.Context, id uuid.UUID) (*entity.StoreProduct, error)
-	ListStoreProductsByStoreID(ctx context.Context, storeID uuid.UUID) ([]*entity.StoreProduct, error)
+	ListStoreProductsByStoreID(ctx context.Context, storeID uuid.UUID, includeExpired bool) ([]*entity.StoreProduct, error)
 	GetStoreProductByStoreAndProduct(ctx context.Context, storeID, productID uuid.UUID) (*entity.StoreProduct, error)
 } 

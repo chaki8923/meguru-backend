@@ -24,11 +24,12 @@ import (
 
 // Response structure to be sent to the controller
 type FlyerResponse struct {
-	ID         string         `json:"id"`
-	StoreID    string         `json:"store_id"`
-	ImageData  string         `json:"image_data"` // base64 encoded image
-	FlyerData  *dto.FlyerData `json:"flyer_data"`
-	CreatedAt  time.Time      `json:"created_at"`
+	ID                string         `json:"id"`
+	StoreID           string         `json:"store_id"`
+	ImageData         string         `json:"image_data"` // base64 encoded image
+	FlyerData         *dto.FlyerData `json:"flyer_data"`
+	DisplayExpiryDate *time.Time     `json:"display_expiry_date,omitempty"`
+	CreatedAt         time.Time      `json:"created_at"`
 }
 
 type FlyerUsecase struct {
@@ -158,11 +159,12 @@ JSON構造:
 
 	// 5. Construct and return the response
 	response := &FlyerResponse{
-		ID:         savedFlyer.ID.String(),
-		StoreID:    storeID.String(),
-		ImageData:  base64.StdEncoding.EncodeToString(savedFlyer.ImageData),
-		FlyerData:  &flyerData,
-		CreatedAt:  savedFlyer.CreatedAt,
+		ID:                savedFlyer.ID.String(),
+		StoreID:           storeID.String(),
+		ImageData:         base64.StdEncoding.EncodeToString(savedFlyer.ImageData),
+		FlyerData:         &flyerData,
+		DisplayExpiryDate: savedFlyer.DisplayExpiryDate,
+		CreatedAt:         savedFlyer.CreatedAt,
 	}
 
 	return response, nil
@@ -178,10 +180,11 @@ func (u *FlyerUsecase) GetFlyerByStoreID(ctx context.Context, storeID string) (*
 	}
 
 	response := &FlyerResponse{
-		ID:        flyer.ID.String(),
-		ImageData: base64.StdEncoding.EncodeToString(flyer.ImageData),
-		FlyerData: flyerData,
-		CreatedAt: flyer.CreatedAt,
+		ID:                flyer.ID.String(),
+		ImageData:         base64.StdEncoding.EncodeToString(flyer.ImageData),
+		FlyerData:         flyerData,
+		DisplayExpiryDate: flyer.DisplayExpiryDate,
+		CreatedAt:         flyer.CreatedAt,
 	}
 
 	return response, nil
@@ -320,11 +323,12 @@ func (u *FlyerUsecase) AnalyzeAndUpdateStoreFromFlyer(ctx context.Context, fileH
 
 	// 9. レスポンス作成
 	response := &FlyerResponse{
-		ID:         savedFlyer.ID.String(),
-		StoreID:    storeID.String(),
-		ImageData:  base64.StdEncoding.EncodeToString(savedFlyer.ImageData),
-		FlyerData:  flyerData,
-		CreatedAt:  savedFlyer.CreatedAt,
+		ID:                savedFlyer.ID.String(),
+		StoreID:           storeID.String(),
+		ImageData:         base64.StdEncoding.EncodeToString(savedFlyer.ImageData),
+		FlyerData:         flyerData,
+		DisplayExpiryDate: savedFlyer.DisplayExpiryDate,
+		CreatedAt:         savedFlyer.CreatedAt,
 	}
 
 	return response, nil
@@ -441,6 +445,155 @@ JSON構造:
 	return &flyerData, nil
 }
 
+// AnalyzeAndUpdateStoreFromFlyerWithData - 追加のflyerDataを受け取るバージョン
+func (u *FlyerUsecase) AnalyzeAndUpdateStoreFromFlyerWithData(ctx context.Context, fileHeader *multipart.FileHeader, token string, flyerDataUpdate *dto.FlyerData) (*FlyerResponse, error) {
+	// 1. トークンから店舗IDを取得
+	storeID, err := u.getStoreIDFromToken(token)
+	if err != nil {
+		return nil, fmt.Errorf("invalid token: %w", err)
+	}
+
+	// 2. 現在の店舗情報を取得
+	currentStore, err := u.storeRepository.FindByID(ctx, storeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current store: %w", err)
+	}
+	if currentStore == nil {
+		return nil, fmt.Errorf("store not found")
+	}
+
+	// 3. チラシ画像を読み込み
+	file, err := fileHeader.Open()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	imageData, err := ioutil.ReadAll(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read image data: %w", err)
+	}
+
+	// 4. AI分析でチラシ情報を抽出
+	flyerData, err := u.analyzeFlyer(ctx, imageData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to analyze flyer: %w", err)
+	}
+
+	// 5. flyerDataUpdateからDisplayExpiryDateを設定
+	if flyerDataUpdate != nil && flyerDataUpdate.DisplayExpiryDate != nil {
+		flyerData.DisplayExpiryDate = flyerDataUpdate.DisplayExpiryDate
+	}
+
+	// 6. 店舗情報を更新（空でない値のみ更新）
+	if flyerData.StoreInfo.Name != "" {
+		currentStore.Name = flyerData.StoreInfo.Name
+	}
+	if flyerData.StoreInfo.Prefecture != "" {
+		currentStore.Prefecture = flyerData.StoreInfo.Prefecture
+	}
+	if flyerData.StoreInfo.City != "" {
+		currentStore.City = flyerData.StoreInfo.City
+	}
+	if flyerData.StoreInfo.Street != "" {
+		currentStore.Street = flyerData.StoreInfo.Street
+	}
+	currentStore.UpdatedAt = time.Now()
+
+	// 7. 店舗情報を更新
+	if err := u.storeRepository.Update(ctx, currentStore); err != nil {
+		return nil, fmt.Errorf("failed to update store: %w", err)
+	}
+
+	// 8. チラシから抽出された商品を店舗商品として自動登録
+	if flyerData.FlyerItemsInfo != nil && len(flyerData.FlyerItemsInfo) > 0 {
+		for _, item := range flyerData.FlyerItemsInfo {
+			if item.Product.Name == "" {
+				continue // 商品名が空の場合はスキップ
+			}
+
+			// 商品マスターを検索または作成
+			product, err := u.productRepository.GetProductByName(ctx, item.Product.Name)
+			if err != nil {
+				log.Printf("Error searching product %s: %v", item.Product.Name, err)
+				continue
+			}
+
+			if product == nil {
+				// 商品が存在しない場合は作成
+				product = &entity.Product{
+					Name:     item.Product.Name,
+					Category: item.Product.Category,
+				}
+				product, err = u.productRepository.CreateProduct(ctx, product)
+				if err != nil {
+					log.Printf("Error creating product %s: %v", item.Product.Name, err)
+					continue
+				}
+			}
+
+			// 既に店舗商品として登録されているかチェック
+			existingStoreProduct, err := u.productRepository.GetStoreProductByStoreAndProduct(ctx, storeID, product.ID)
+			if err != nil {
+				log.Printf("Error checking existing store product %s: %v", item.Product.Name, err)
+				continue
+			}
+
+			if existingStoreProduct != nil {
+				// 既存の店舗商品の場合は価格と在庫を更新
+				existingStoreProduct.Price = item.PriceIncludingTax
+				existingStoreProduct.Status = "在庫あり" // チラシに載っているので在庫ありとする
+
+				_, err = u.productRepository.UpdateStoreProduct(ctx, existingStoreProduct)
+				if err != nil {
+					log.Printf("Error updating store product %s: %v", item.Product.Name, err)
+				} else {
+					log.Printf("Updated store product: %s (price: %d)", item.Product.Name, item.PriceIncludingTax)
+				}
+			} else {
+				// 新規店舗商品として登録
+				storeProduct := &entity.StoreProduct{
+					StoreID:   storeID,
+					ProductID: product.ID,
+					Price:     item.PriceIncludingTax,
+					Quantity:  1, // デフォルト在庫数
+					ImageURL:  "", // チラシ画像からは個別商品画像は取得できない
+					Status:    "在庫あり",
+				}
+
+				_, err = u.productRepository.CreateStoreProduct(ctx, storeProduct)
+				if err != nil {
+					log.Printf("Error creating store product %s: %v", item.Product.Name, err)
+				} else {
+					log.Printf("Created new store product: %s (price: %d)", item.Product.Name, item.PriceIncludingTax)
+				}
+			}
+		}
+	}
+
+	// 9. チラシ情報を保存
+	flyerToSave := &entity.Flyer{
+		ImageData: imageData,
+	}
+
+	savedFlyer, _, err := u.flyerRepository.SaveFlyerForStore(ctx, flyerToSave, flyerData, storeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to save flyer data: %w", err)
+	}
+
+	// 10. レスポンス作成
+	response := &FlyerResponse{
+		ID:                savedFlyer.ID.String(),
+		StoreID:           storeID.String(),
+		ImageData:         base64.StdEncoding.EncodeToString(savedFlyer.ImageData),
+		FlyerData:         flyerData,
+		DisplayExpiryDate: savedFlyer.DisplayExpiryDate,
+		CreatedAt:         savedFlyer.CreatedAt,
+	}
+
+	return response, nil
+}
+
 // GetAllFlyersByStoreID retrieves all flyers for a specific store ID
 func (u *FlyerUsecase) GetAllFlyersByStoreID(ctx context.Context, storeID string) ([]*FlyerResponse, error) {
 	log.Printf("FlyerUsecase: Getting all flyers for storeID: %s", storeID)
@@ -463,11 +616,12 @@ func (u *FlyerUsecase) GetAllFlyersByStoreID(ctx context.Context, storeID string
 		imageDataStr := base64.StdEncoding.EncodeToString(flyer.ImageData)
 		
 		responses[i] = &FlyerResponse{
-			ID:        flyer.ID.String(),
-			StoreID:   storeID,
-			ImageData: imageDataStr,
-			FlyerData: flyerDataList[i],
-			CreatedAt: flyer.CreatedAt,
+			ID:                flyer.ID.String(),
+			StoreID:           storeID,
+			ImageData:         imageDataStr,
+			FlyerData:         flyerDataList[i],
+			DisplayExpiryDate: flyer.DisplayExpiryDate,
+			CreatedAt:         flyer.CreatedAt,
 		}
 	}
 

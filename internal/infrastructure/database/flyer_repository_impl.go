@@ -33,7 +33,13 @@ func (r *FlyerRepositoryImpl) SaveFlyer(ctx context.Context, flyer *entity.Flyer
 	flyer.ID = uuid.New()
 	flyer.CreatedAt = time.Now()
 	flyer.UpdatedAt = flyer.CreatedAt
-	_, err = tx.ExecContext(ctx, "INSERT INTO flyers (id, image_data, created_at, updated_at) VALUES ($1, $2, $3, $4)", flyer.ID, flyer.ImageData, flyer.CreatedAt, flyer.UpdatedAt)
+	
+	// DisplayExpiryDateがflyerDataから提供される場合は設定
+	if flyerData.DisplayExpiryDate != nil {
+		flyer.DisplayExpiryDate = flyerData.DisplayExpiryDate
+	}
+	
+	_, err = tx.ExecContext(ctx, "INSERT INTO flyers (id, image_data, display_expiry_date, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)", flyer.ID, flyer.ImageData, flyer.DisplayExpiryDate, flyer.CreatedAt, flyer.UpdatedAt)
 	if err != nil {
 		return nil, uuid.Nil, fmt.Errorf("failed to insert into flyers: %w", err)
 	}
@@ -132,7 +138,13 @@ func (r *FlyerRepositoryImpl) SaveFlyerForStore(ctx context.Context, flyer *enti
 	flyer.ID = uuid.New()
 	flyer.CreatedAt = time.Now()
 	flyer.UpdatedAt = flyer.CreatedAt
-	_, err = tx.ExecContext(ctx, "INSERT INTO flyers (id, image_data, created_at, updated_at) VALUES ($1, $2, $3, $4)", flyer.ID, flyer.ImageData, flyer.CreatedAt, flyer.UpdatedAt)
+	
+	// DisplayExpiryDateがflyerDataから提供される場合は設定
+	if flyerData.DisplayExpiryDate != nil {
+		flyer.DisplayExpiryDate = flyerData.DisplayExpiryDate
+	}
+	
+	_, err = tx.ExecContext(ctx, "INSERT INTO flyers (id, image_data, display_expiry_date, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)", flyer.ID, flyer.ImageData, flyer.DisplayExpiryDate, flyer.CreatedAt, flyer.UpdatedAt)
 	if err != nil {
 		return nil, uuid.Nil, fmt.Errorf("failed to insert into flyers: %w", err)
 	}
@@ -209,7 +221,7 @@ func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID str
 	log.Printf("GetFlyerByStoreID called with storeID: %s", storeID)
 	query := `
     SELECT
-        f.id, f.image_data, f.created_at, f.updated_at,
+        f.id, f.image_data, f.display_expiry_date, f.created_at, f.updated_at,
         s.name, s.prefecture, s.city, s.street,
         c.name, c.start_date, c.end_date,
         p.name, p.category,
@@ -220,7 +232,8 @@ func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID str
     JOIN stores s ON cs.store_id = s.id
     LEFT JOIN flyer_items fi ON c.id = fi.campaign_id
     LEFT JOIN products p ON fi.product_id = p.id
-    WHERE s.id = $1
+    WHERE s.id = $1 
+      AND (f.display_expiry_date IS NULL OR DATE(f.display_expiry_date) >= CURRENT_DATE)
     ORDER BY f.created_at DESC, p.name
     `
 
@@ -237,6 +250,7 @@ func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID str
 	for rows.Next() {
 		var flyerID uuid.UUID
 		var imageData []byte
+		var displayExpiryDate sql.NullTime
 		var createdAt, updatedAt time.Time
 		var storeName, storePrefecture, storeCity, storeStreet string
 		var campaignName string
@@ -245,7 +259,7 @@ func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID str
 		var priceExcludingTax, priceIncludingTax sql.NullInt64
 
 		if err := rows.Scan(
-			&flyerID, &imageData, &createdAt, &updatedAt,
+			&flyerID, &imageData, &displayExpiryDate, &createdAt, &updatedAt,
 			&storeName, &storePrefecture, &storeCity, &storeStreet,
 			&campaignName, &startDate, &endDate,
 			&productName, &productCategory,
@@ -255,17 +269,24 @@ func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID str
 		}
 
 		if flyer == nil {
+			var displayExpiry *time.Time
+			if displayExpiryDate.Valid {
+				displayExpiry = &displayExpiryDate.Time
+			}
+			
 			flyer = &entity.Flyer{
-				ID:        flyerID,
-				ImageData: imageData,
-				CreatedAt: createdAt,
-				UpdatedAt: updatedAt,
+				ID:                flyerID,
+				ImageData:         imageData,
+				DisplayExpiryDate: displayExpiry,
+				CreatedAt:         createdAt,
+				UpdatedAt:         updatedAt,
 			}
 			flyerData.StoreInfo.Name = storeName
 			flyerData.StoreInfo.Prefecture = storePrefecture
 			flyerData.StoreInfo.City = storeCity
 			flyerData.StoreInfo.Street = storeStreet
 			flyerData.CampaignInfo.Name = campaignName
+			flyerData.DisplayExpiryDate = displayExpiry
 			
 			// sql.NullTime を適切に処理
 			if startDate.Valid {
@@ -314,7 +335,7 @@ func (r *FlyerRepositoryImpl) GetAllFlyersByStoreID(ctx context.Context, storeID
 	// Use the same query structure as GetFlyerByStoreID but remove LIMIT 1
 	query := `
 		SELECT 
-			f.id, f.image_data, f.created_at, f.updated_at,
+			f.id, f.image_data, f.display_expiry_date, f.created_at, f.updated_at,
 			s.name, s.prefecture, s.city, s.street,
 			c.name, c.start_date, c.end_date,
 			p.name, p.category,
@@ -326,6 +347,7 @@ func (r *FlyerRepositoryImpl) GetAllFlyersByStoreID(ctx context.Context, storeID
 		LEFT JOIN flyer_items fi ON c.id = fi.campaign_id
 		LEFT JOIN products p ON fi.product_id = p.id
 		WHERE cs.store_id = $1
+		  AND (f.display_expiry_date IS NULL OR DATE(f.display_expiry_date) >= CURRENT_DATE)
 		ORDER BY f.created_at DESC, p.name
 	`
 
@@ -344,6 +366,7 @@ func (r *FlyerRepositoryImpl) GetAllFlyersByStoreID(ctx context.Context, storeID
 		log.Printf("FlyerRepository: Processing row for storeID %s", storeID)
 
 		var flyerID, imageData, storeName, prefecture, city, street string
+		var displayExpiryDate sql.NullTime
 		var createdAt, updatedAt time.Time
 		var campaignName sql.NullString
 		var startDate, endDate sql.NullTime
@@ -351,7 +374,7 @@ func (r *FlyerRepositoryImpl) GetAllFlyersByStoreID(ctx context.Context, storeID
 		var priceExcludingTax, priceIncludingTax sql.NullInt64
 
 		err := rows.Scan(
-			&flyerID, &imageData, &createdAt, &updatedAt,
+			&flyerID, &imageData, &displayExpiryDate, &createdAt, &updatedAt,
 			&storeName, &prefecture, &city, &street,
 			&campaignName, &startDate, &endDate,
 			&productName, &productCategory,
@@ -370,11 +393,17 @@ func (r *FlyerRepositoryImpl) GetAllFlyersByStoreID(ctx context.Context, storeID
 				return nil, nil, fmt.Errorf("failed to parse flyer ID: %w", err)
 			}
 
+			var displayExpiry *time.Time
+			if displayExpiryDate.Valid {
+				displayExpiry = &displayExpiryDate.Time
+			}
+
 			flyerMap[flyerID] = &entity.Flyer{
-				ID:        parsedID,
-				ImageData: []byte(imageData),
-				CreatedAt: createdAt,
-				UpdatedAt: updatedAt,
+				ID:                parsedID,
+				ImageData:         []byte(imageData),
+				DisplayExpiryDate: displayExpiry,
+				CreatedAt:         createdAt,
+				UpdatedAt:         updatedAt,
 			}
 
 			flyerDataMap[flyerID] = &dto.FlyerData{
@@ -389,7 +418,8 @@ func (r *FlyerRepositoryImpl) GetAllFlyersByStoreID(ctx context.Context, storeID
 					StartDate: "",
 					EndDate: "",
 				},
-				FlyerItemsInfo: []dto.FlyerItem{},
+				FlyerItemsInfo:    []dto.FlyerItem{},
+				DisplayExpiryDate: displayExpiry,
 			}
 
 			flyerOrder = append(flyerOrder, flyerID)

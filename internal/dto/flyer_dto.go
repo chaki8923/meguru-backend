@@ -1,10 +1,13 @@
 package dto
 
+import "time"
+
 // FlyerData is the DTO for the data extracted from the flyer image by Gemini.
 type FlyerData struct {
-	StoreInfo      Store       `json:"store"`
-	CampaignInfo   Campaign    `json:"campaign"`
-	FlyerItemsInfo []FlyerItem `json:"flyer_items"`
+	StoreInfo         Store       `json:"store"`
+	CampaignInfo      Campaign    `json:"campaign"`
+	FlyerItemsInfo    []FlyerItem `json:"flyer_items"`
+	DisplayExpiryDate *time.Time  `json:"display_expiry_date,omitempty"`
 }
 
 type Store struct {

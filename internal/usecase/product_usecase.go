@@ -421,14 +421,14 @@ func (u *ProductUsecase) DeleteStoreProduct(ctx context.Context, token string, s
 }
 
 // 店舗の商品一覧を取得
-func (u *ProductUsecase) ListStoreProducts(ctx context.Context, token string) ([]*StoreProductResponse, error) {
+func (u *ProductUsecase) ListStoreProducts(ctx context.Context, token string, includeExpired bool) ([]*StoreProductResponse, error) {
 	// トークンから店舗IDを取得
 	storeID, err := u.getStoreIDFromToken(token)
 	if err != nil {
 		return nil, fmt.Errorf("invalid token: %w", err)
 	}
 
-	storeProducts, err := u.productRepository.ListStoreProductsByStoreID(ctx, storeID)
+	storeProducts, err := u.productRepository.ListStoreProductsByStoreID(ctx, storeID, includeExpired)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list store products: %w", err)
 	}

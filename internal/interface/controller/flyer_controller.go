@@ -1,12 +1,14 @@
 package controller
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
 	"errors"
 
 	"meguru-backend/internal/usecase"
+	"meguru-backend/internal/dto"
 
 	"github.com/gin-gonic/gin"
 )
@@ -59,8 +61,21 @@ func (c *FlyerController) UploadFlyer(ctx *gin.Context) {
 
 	log.Println("Successfully received the flyer image")
 	
+	// オプショナルなflyer_dataフィールドを受け取り
+	flyerDataStr := ctx.PostForm("flyer_data")
+	var flyerDataUpdate *dto.FlyerData
+	if flyerDataStr != "" {
+		var tempData dto.FlyerData
+		if err := json.Unmarshal([]byte(flyerDataStr), &tempData); err != nil {
+			log.Printf("Error parsing flyer_data: %v", err)
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid flyer_data format"})
+			return
+		}
+		flyerDataUpdate = &tempData
+	}
+	
 	// ログイン中の店舗情報を更新
-	flyerResponse, err := c.flyerUsecase.AnalyzeAndUpdateStoreFromFlyer(ctx.Request.Context(), file, token)
+	flyerResponse, err := c.flyerUsecase.AnalyzeAndUpdateStoreFromFlyerWithData(ctx.Request.Context(), file, token, flyerDataUpdate)
 	if err != nil {
 		log.Printf("Error in flyer usecase: %v", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
