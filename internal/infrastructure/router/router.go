@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, productController *controller.ProductController, newsViewController *controller.NewsViewController) *gin.Engine {
+func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, productController *controller.ProductController, newsViewController *controller.NewsViewController, tweetController *controller.TweetController) *gin.Engine {
 	r := gin.Default()
 
 	// CORS設定
@@ -76,6 +76,17 @@ func NewRouter(userController *controller.UserController, healthController *cont
 			news.POST("/view", newsViewController.RecordNewsView)           // ニュース閲覧記録
 			news.GET("/view-count/:news_id", newsViewController.GetNewsViewCount) // 単一ニュース閲覧数
 			news.POST("/view-counts", newsViewController.GetNewsViewCounts) // 複数ニュース閲覧数
+		}
+
+		// ツイート関連のエンドポイント
+		api.GET("/tweets", tweetController.ListTweets)
+		tweets := api.Group("/tweets")
+		tweets.Use(AuthMiddleware())
+		{
+			tweets.POST("", tweetController.CreateTweet)
+			tweets.DELETE("/:id", tweetController.DeleteTweet)
+			tweets.POST("/:id/like", tweetController.LikeTweet)
+			tweets.DELETE("/:id/like", tweetController.UnlikeTweet)
 		}
 	}
 

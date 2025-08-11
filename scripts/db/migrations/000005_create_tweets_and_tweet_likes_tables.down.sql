@@ -1,0 +1,3 @@
+
+DROP TABLE IF EXISTS tweet_likes;
+DROP TABLE IF EXISTS tweets;
