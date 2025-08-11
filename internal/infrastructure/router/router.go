@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, productController *controller.ProductController) *gin.Engine {
+func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, productController *controller.ProductController, newsViewController *controller.NewsViewController) *gin.Engine {
 	r := gin.Default()
 
 	// CORS設定
@@ -55,6 +55,7 @@ func NewRouter(userController *controller.UserController, healthController *cont
 		flyer := api.Group("/flyer")
 		{
 			flyer.POST("/upload", flyerController.UploadFlyer)
+			flyer.GET("/nearby", flyerController.GetNearbyFlyers)  // 近隣店舗チラシ取得
 			flyer.GET("/:store_id", flyerController.GetFlyerByStoreID)
 			flyer.GET("/all/:store_id", flyerController.GetAllFlyersByStoreID)
 		}
@@ -67,6 +68,14 @@ func NewRouter(userController *controller.UserController, healthController *cont
 			products.GET("/:id", productController.GetStoreProduct)
 			products.PUT("/:id", productController.UpdateStoreProduct)
 			products.DELETE("/:id", productController.DeleteStoreProduct)
+		}
+		
+		// ニュース閲覧関連のエンドポイント
+		news := api.Group("/news")
+		{
+			news.POST("/view", newsViewController.RecordNewsView)           // ニュース閲覧記録
+			news.GET("/view-count/:news_id", newsViewController.GetNewsViewCount) // 単一ニュース閲覧数
+			news.POST("/view-counts", newsViewController.GetNewsViewCounts) // 複数ニュース閲覧数
 		}
 	}
 

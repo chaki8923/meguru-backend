@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"errors"
 
@@ -156,5 +157,35 @@ func (c *FlyerController) GetAllFlyersByStoreID(ctx *gin.Context) {
 	}
 
 	log.Printf("Successfully retrieved %d flyers for store ID: %s", len(flyerResponses), storeID)
+	ctx.JSON(http.StatusOK, gin.H{"data": flyerResponses})
+}
+
+// GetNearbyFlyers 近隣店舗のチラシを取得
+func (c *FlyerController) GetNearbyFlyers(ctx *gin.Context) {
+	city := ctx.Query("city")
+	limitStr := ctx.Query("limit")
+	
+	if city == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "city parameter is required"})
+		return
+	}
+	
+	limit := 4 // デフォルト値
+	if limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	log.Printf("Getting nearby flyers for city: %s, limit: %d", city, limit)
+
+	flyerResponses, err := c.flyerUsecase.GetNearbyFlyers(ctx.Request.Context(), city, limit)
+	if err != nil {
+		log.Printf("Error in GetNearbyFlyers usecase: %v", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	log.Printf("Successfully retrieved %d nearby flyers for city: %s", len(flyerResponses), city)
 	ctx.JSON(http.StatusOK, gin.H{"data": flyerResponses})
 }

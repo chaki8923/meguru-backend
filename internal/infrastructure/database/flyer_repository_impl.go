@@ -29,22 +29,7 @@ func (r *FlyerRepositoryImpl) SaveFlyer(ctx context.Context, flyer *entity.Flyer
 	}
 	defer tx.Rollback() // Rollback on error
 
-	// 1. Save Flyer
-	flyer.ID = uuid.New()
-	flyer.CreatedAt = time.Now()
-	flyer.UpdatedAt = flyer.CreatedAt
-	
-	// DisplayExpiryDateがflyerDataから提供される場合は設定
-	if flyerData.DisplayExpiryDate != nil {
-		flyer.DisplayExpiryDate = flyerData.DisplayExpiryDate
-	}
-	
-	_, err = tx.ExecContext(ctx, "INSERT INTO flyers (id, image_data, display_expiry_date, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)", flyer.ID, flyer.ImageData, flyer.DisplayExpiryDate, flyer.CreatedAt, flyer.UpdatedAt)
-	if err != nil {
-		return nil, uuid.Nil, fmt.Errorf("failed to insert into flyers: %w", err)
-	}
-
-	// 2. Find or Create Store
+	// 1. Find or Create Store first (need storeID for flyer)
 	var storeID uuid.UUID
 	storeInfo := flyerData.StoreInfo
 	err = tx.QueryRowContext(ctx, "SELECT id FROM stores WHERE name = $1", storeInfo.Name).Scan(&storeID)
@@ -56,6 +41,22 @@ func (r *FlyerRepositoryImpl) SaveFlyer(ctx context.Context, flyer *entity.Flyer
 		}
 	} else if err != nil {
 		return nil, uuid.Nil, fmt.Errorf("failed to query store: %w", err)
+	}
+
+	// 2. Save Flyer with owner_store_id
+	flyer.ID = uuid.New()
+	flyer.OwnerStoreID = storeID
+	flyer.CreatedAt = time.Now()
+	flyer.UpdatedAt = flyer.CreatedAt
+	
+	// DisplayExpiryDateがflyerDataから提供される場合は設定
+	if flyerData.DisplayExpiryDate != nil {
+		flyer.DisplayExpiryDate = flyerData.DisplayExpiryDate
+	}
+	
+	_, err = tx.ExecContext(ctx, "INSERT INTO flyers (id, image_data, owner_store_id, display_expiry_date, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)", flyer.ID, flyer.ImageData, flyer.OwnerStoreID, flyer.DisplayExpiryDate, flyer.CreatedAt, flyer.UpdatedAt)
+	if err != nil {
+		return nil, uuid.Nil, fmt.Errorf("failed to insert into flyers: %w", err)
 	}
 
 	// 3. Save Campaign
@@ -134,8 +135,9 @@ func (r *FlyerRepositoryImpl) SaveFlyerForStore(ctx context.Context, flyer *enti
 	}
 	defer tx.Rollback() // Rollback on error
 
-	// 1. Save Flyer
+	// 1. Save Flyer with owner_store_id
 	flyer.ID = uuid.New()
+	flyer.OwnerStoreID = storeID
 	flyer.CreatedAt = time.Now()
 	flyer.UpdatedAt = flyer.CreatedAt
 	
@@ -144,7 +146,7 @@ func (r *FlyerRepositoryImpl) SaveFlyerForStore(ctx context.Context, flyer *enti
 		flyer.DisplayExpiryDate = flyerData.DisplayExpiryDate
 	}
 	
-	_, err = tx.ExecContext(ctx, "INSERT INTO flyers (id, image_data, display_expiry_date, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)", flyer.ID, flyer.ImageData, flyer.DisplayExpiryDate, flyer.CreatedAt, flyer.UpdatedAt)
+	_, err = tx.ExecContext(ctx, "INSERT INTO flyers (id, image_data, owner_store_id, display_expiry_date, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)", flyer.ID, flyer.ImageData, flyer.OwnerStoreID, flyer.DisplayExpiryDate, flyer.CreatedAt, flyer.UpdatedAt)
 	if err != nil {
 		return nil, uuid.Nil, fmt.Errorf("failed to insert into flyers: %w", err)
 	}
@@ -223,13 +225,12 @@ func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID str
     SELECT
         f.id, f.image_data, f.display_expiry_date, f.created_at, f.updated_at,
         s.name, s.prefecture, s.city, s.street,
-        c.name, c.start_date, c.end_date,
+        c.name, c.start_date::text, c.end_date::text,
         p.name, p.category,
         fi.price_excluding_tax, fi.price_including_tax, fi.unit, fi.restriction_note
     FROM flyers f
+    JOIN stores s ON f.owner_store_id = s.id
     JOIN campaigns c ON f.id = c.flyer_id
-    JOIN campaign_stores cs ON c.id = cs.campaign_id
-    JOIN stores s ON cs.store_id = s.id
     LEFT JOIN flyer_items fi ON c.id = fi.campaign_id
     LEFT JOIN products p ON fi.product_id = p.id
     WHERE s.id = $1 
@@ -337,16 +338,15 @@ func (r *FlyerRepositoryImpl) GetAllFlyersByStoreID(ctx context.Context, storeID
 		SELECT 
 			f.id, f.image_data, f.display_expiry_date, f.created_at, f.updated_at,
 			s.name, s.prefecture, s.city, s.street,
-			c.name, c.start_date, c.end_date,
+			c.name, c.start_date::text, c.end_date::text,
 			p.name, p.category,
 			fi.price_excluding_tax, fi.price_including_tax, fi.unit, fi.restriction_note
 		FROM flyers f
+		JOIN stores s ON f.owner_store_id = s.id
 		JOIN campaigns c ON f.id = c.flyer_id
-		JOIN campaign_stores cs ON c.id = cs.campaign_id
-		JOIN stores s ON cs.store_id = s.id
 		LEFT JOIN flyer_items fi ON c.id = fi.campaign_id
 		LEFT JOIN products p ON fi.product_id = p.id
-		WHERE cs.store_id = $1
+		WHERE f.owner_store_id = $1
 		  AND (f.display_expiry_date IS NULL OR DATE(f.display_expiry_date) >= CURRENT_DATE)
 		ORDER BY f.created_at DESC, p.name
 	`
@@ -475,5 +475,152 @@ func (r *FlyerRepositoryImpl) GetAllFlyersByStoreID(ctx context.Context, storeID
 	}
 
 	log.Printf("FlyerRepository: Successfully retrieved %d flyers for storeID: %s", len(flyers), storeID)
+	return flyers, flyerDataList, nil
+}
+
+// GetNearbyFlyers 近隣店舗のチラシを取得
+func (r *FlyerRepositoryImpl) GetNearbyFlyers(ctx context.Context, city string, limit int) ([]*entity.Flyer, []*dto.FlyerData, error) {
+	log.Printf("FlyerRepository: Getting nearby flyers for city: %s, limit: %d", city, limit)
+	
+	// デバッグ用: 全チラシ数と指定都市の店舗数を確認
+	var totalFlyers, cityStores int
+	r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM flyers").Scan(&totalFlyers)
+	r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM stores WHERE city = $1", city).Scan(&cityStores)
+	log.Printf("Debug: Total flyers in DB: %d, Stores in city '%s': %d", totalFlyers, city, cityStores)
+
+	query := `
+		SELECT
+			f.id, f.image_data, f.display_expiry_date, f.created_at, f.updated_at,
+			owner_store.id, owner_store.name, owner_store.prefecture, owner_store.city, owner_store.street,
+			COALESCE(c.name, ''), COALESCE(c.start_date::text, ''), COALESCE(c.end_date::text, ''),
+			COALESCE(p.name, ''), COALESCE(p.category, ''), COALESCE(fi.price_excluding_tax, 0), COALESCE(fi.price_including_tax, 0), COALESCE(fi.unit, ''), COALESCE(fi.restriction_note, '')
+		FROM flyers f
+		JOIN stores owner_store ON f.owner_store_id = owner_store.id
+		JOIN campaigns c ON f.id = c.flyer_id
+		LEFT JOIN flyer_items fi ON c.id = fi.campaign_id
+		LEFT JOIN products p ON fi.product_id = p.id
+		WHERE owner_store.city = $1
+		  AND (f.display_expiry_date IS NULL OR DATE(f.display_expiry_date) >= CURRENT_DATE)
+		ORDER BY f.created_at DESC, p.name
+		LIMIT $2
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, city, limit*10) // より多く取得して後でフィルタリング
+	if err != nil {
+		log.Printf("Error executing nearby flyers query: %v", err)
+		return nil, nil, fmt.Errorf("error querying nearby flyers: %w", err)
+	}
+	defer rows.Close()
+	
+	log.Printf("Query executed successfully for city: %s", city)
+
+	flyerMap := make(map[uuid.UUID]*entity.Flyer)
+	flyerDataMap := make(map[uuid.UUID]*dto.FlyerData)
+	flyerOrder := []uuid.UUID{}
+
+	for rows.Next() {
+		var flyerID uuid.UUID
+		var imageData []byte
+		var displayExpiryDate sql.NullTime
+		var createdAt, updatedAt time.Time
+
+		var storeID uuid.UUID
+		var storeName, prefecture, city, street string
+
+		var campaignName, startDate, endDate string
+		var productName, category string
+		var priceExcludingTax, priceIncludingTax int
+		var unit, restrictionNote string
+
+		if err := rows.Scan(
+			&flyerID, &imageData, &displayExpiryDate, &createdAt, &updatedAt,
+			&storeID, &storeName, &prefecture, &city, &street,
+			&campaignName, &startDate, &endDate,
+			&productName, &category, &priceExcludingTax, &priceIncludingTax, &unit, &restrictionNote,
+		); err != nil {
+			return nil, nil, fmt.Errorf("error scanning row: %w", err)
+		}
+
+		log.Printf("Debug row: flyerID=%s, storeID=%s, storeName=%s, campaignName=%s", flyerID, storeID, storeName, campaignName)
+
+		if _, exists := flyerMap[flyerID]; !exists {
+			var displayExpiry *time.Time
+			if displayExpiryDate.Valid {
+				displayExpiry = &displayExpiryDate.Time
+			}
+
+			flyerMap[flyerID] = &entity.Flyer{
+				ID:                flyerID,
+				ImageData:         imageData,
+				DisplayExpiryDate: displayExpiry,
+				CreatedAt:         createdAt,
+				UpdatedAt:         updatedAt,
+			}
+
+			flyerDataMap[flyerID] = &dto.FlyerData{
+				StoreInfo: dto.Store{
+					ID:         storeID.String(),
+					Name:       storeName,
+					Prefecture: prefecture,
+					City:       city,
+					Street:     street,
+				},
+				CampaignInfo: dto.Campaign{
+					Name:      campaignName,
+					StartDate: startDate,
+					EndDate:   endDate,
+				},
+				FlyerItemsInfo:    []dto.FlyerItem{},
+				DisplayExpiryDate: displayExpiry,
+			}
+
+			flyerOrder = append(flyerOrder, flyerID)
+		}
+
+		// 商品情報を追加（productNameが空でない場合のみ）
+		if productName != "" {
+			flyerItem := dto.FlyerItem{
+				Product: dto.Product{
+					Name:     productName,
+					Category: category,
+				},
+				PriceExcludingTax: priceExcludingTax,
+				PriceIncludingTax: priceIncludingTax,
+				Unit:              unit,
+				RestrictionNote:   restrictionNote,
+			}
+			flyerDataMap[flyerID].FlyerItemsInfo = append(flyerDataMap[flyerID].FlyerItemsInfo, flyerItem)
+		}
+
+		// 制限数に達したらbreak
+		if len(flyerMap) >= limit {
+			break
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	if len(flyerMap) == 0 {
+		return []*entity.Flyer{}, []*dto.FlyerData{}, nil
+	}
+
+	// Convert maps to slices in order (制限数まで)
+	actualLimit := limit
+	if len(flyerOrder) < limit {
+		actualLimit = len(flyerOrder)
+	}
+	
+	flyers := make([]*entity.Flyer, actualLimit)
+	flyerDataList := make([]*dto.FlyerData, actualLimit)
+	
+	for i := 0; i < actualLimit; i++ {
+		flyerID := flyerOrder[i]
+		flyers[i] = flyerMap[flyerID]
+		flyerDataList[i] = flyerDataMap[flyerID]
+	}
+
+	log.Printf("FlyerRepository: Successfully retrieved %d nearby flyers for city: %s", len(flyers), city)
 	return flyers, flyerDataList, nil
 }

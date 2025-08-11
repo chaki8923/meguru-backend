@@ -61,6 +61,7 @@ func main() {
 	pushSubscriptionRepo := infraDB.NewPushSubscriptionRepository(db)
 	flyerRepo := infraDB.NewFlyerRepository(db)
 	productRepo := infraDB.NewProductRepository(db)
+	newsViewRepo := infraDB.NewNewsViewRepository(db)
 
 	// Initialize email service
 	emailHost := os.Getenv("EMAIL_HOST")
@@ -85,6 +86,7 @@ func main() {
 	pushSubscriptionUsecase := usecase.NewPushSubscriptionUsecase(pushSubscriptionRepo, webPushService)
 	flyerUsecase := usecase.NewFlyerUsecase(flyerRepo, storeRepo, productRepo)
 	productUsecase := usecase.NewProductUsecase(productRepo, storeRepo, r2Service)
+	newsViewUsecase := usecase.NewNewsViewUsecase(newsViewRepo, storeRepo)
 
 	// Initialize controllers
 	userController := controller.NewUserController(userUsecase)
@@ -93,9 +95,10 @@ func main() {
 	pushSubscriptionController := controller.NewPushSubscriptionController(pushSubscriptionUsecase)
 	flyerController := controller.NewFlyerController(flyerUsecase)
 	productController := controller.NewProductController(productUsecase)
+	newsViewController := controller.NewNewsViewController(newsViewUsecase)
 
 	// Initialize router
-	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController, productController)
+	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController, productController, newsViewController)
 
 	port := os.Getenv("PORT")
 	if port == "" {

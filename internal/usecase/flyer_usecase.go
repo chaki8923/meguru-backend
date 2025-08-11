@@ -629,3 +629,38 @@ func (u *FlyerUsecase) GetAllFlyersByStoreID(ctx context.Context, storeID string
 	return responses, nil
 }
 
+// GetNearbyFlyers 近隣店舗のチラシを取得
+func (u *FlyerUsecase) GetNearbyFlyers(ctx context.Context, city string, limit int) ([]*FlyerResponse, error) {
+	log.Printf("FlyerUsecase: Getting nearby flyers for city: %s, limit: %d", city, limit)
+
+	// 近隣店舗のチラシを取得
+	flyers, flyerDataList, err := u.flyerRepository.GetNearbyFlyers(ctx, city, limit)
+	if err != nil {
+		log.Printf("Error getting nearby flyers: %v", err)
+		return nil, fmt.Errorf("failed to get nearby flyers: %w", err)
+	}
+
+	if len(flyers) == 0 {
+		log.Printf("No nearby flyers found for city: %s", city)
+		return []*FlyerResponse{}, nil
+	}
+
+	responses := make([]*FlyerResponse, len(flyers))
+	for i, flyer := range flyers {
+		// 画像データをbase64エンコード
+		imageDataStr := base64.StdEncoding.EncodeToString(flyer.ImageData)
+
+		responses[i] = &FlyerResponse{
+			ID:                flyer.ID.String(),
+			StoreID:           flyerDataList[i].StoreInfo.ID,
+			ImageData:         imageDataStr,
+			FlyerData:         flyerDataList[i],
+			DisplayExpiryDate: flyer.DisplayExpiryDate,
+			CreatedAt:         flyer.CreatedAt,
+		}
+	}
+
+	log.Printf("FlyerUsecase: Successfully retrieved %d nearby flyers for city: %s", len(responses), city)
+	return responses, nil
+}
+

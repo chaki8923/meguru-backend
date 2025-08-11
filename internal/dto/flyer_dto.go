@@ -11,7 +11,8 @@ type FlyerData struct {
 }
 
 type Store struct {
-	Name    string `json:"name"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
 	Prefecture string `json:"prefecture"`
 	City       string `json:"city"`
 	Street     string `json:"street"`
