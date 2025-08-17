@@ -35,6 +35,7 @@ func NewRouter(userController *controller.UserController, healthController *cont
 		users := api.Group("/users")
 		{
 			users.POST("/register", userController.CreateUser)
+			users.POST("/login", userController.LoginUser)
 		}
 		stores := api.Group("/stores")
 		{

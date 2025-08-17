@@ -81,8 +81,17 @@ func main() {
 	// メール認証機能の有効/無効を環境変数から取得（デフォルトは無効）
 	enableEmailVerification := os.Getenv("ENABLE_EMAIL_VERIFICATION") == "true"
 
+	// JWT秘密鍵を環境変数から取得（デフォルト値を設定）
+	jwtSecretKey := os.Getenv("JWT_SECRET_KEY")
+	if jwtSecretKey == "" {
+		jwtSecretKey = "meguru-secret-key-default-2024" // デフォルト値（本番では必ず環境変数を設定）
+	}
+
+	// Initialize JWT service
+	jwtService := usecase.NewJWTService(jwtSecretKey)
+
 	// Initialize use cases
-	userUsecase := usecase.NewUserUsecase(userRepo)
+	userUsecase := usecase.NewUserUsecase(userRepo, jwtService)
 	healthUsecase := usecase.NewHealthUsecase()
 	storeUsecase := usecase.NewStoreUsecase(storeRepo, storeTokenRepo, emailService, enableEmailVerification)
 	pushSubscriptionUsecase := usecase.NewPushSubscriptionUsecase(pushSubscriptionRepo, webPushService)
