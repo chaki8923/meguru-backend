@@ -13,4 +13,5 @@ type FlyerRepository interface {
 	SaveFlyerForStore(ctx context.Context, flyer *entity.Flyer, flyerData *dto.FlyerData, storeID uuid.UUID) (*entity.Flyer, uuid.UUID, error)
 	GetFlyerByStoreID(ctx context.Context, storeID string) (*entity.Flyer, *dto.FlyerData, error)
 	GetAllFlyersByStoreID(ctx context.Context, storeID string) ([]*entity.Flyer, []*dto.FlyerData, error)
+	GetNearbyFlyers(ctx context.Context, city string, limit int) ([]*entity.Flyer, []*dto.FlyerData, error)
 }

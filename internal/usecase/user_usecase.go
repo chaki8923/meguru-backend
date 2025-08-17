@@ -13,7 +13,8 @@ import (
 )
 
 type UserUsecase struct {
-	userRepo repository.UserRepository
+	userRepo   repository.UserRepository
+	jwtService *JWTService
 }
 
 type CreateUserRequest struct {
@@ -29,10 +30,23 @@ type CreateUserResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type LoginUserRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+type LoginUserResponse struct {
+	ID    uuid.UUID `json:"id"`
+	Email string    `json:"email"`
+	Name  string    `json:"name"`
+	Token string    `json:"token"`
+}
+
 // NewUserUsecase creates a new UserUsecase with the provided UserRepository.
-func NewUserUsecase(userRepo repository.UserRepository) *UserUsecase {
+func NewUserUsecase(userRepo repository.UserRepository, jwtService *JWTService) *UserUsecase {
 	return &UserUsecase{
-		userRepo: userRepo,
+		userRepo:   userRepo,
+		jwtService: jwtService,
 	}
 }
 
@@ -69,5 +83,36 @@ func (u *UserUsecase) CreateUser(ctx context.Context, req *CreateUserRequest) (*
 		Email:     user.Email,
 		Name:      user.Name,
 		CreatedAt: user.CreatedAt,
+	}, nil
+}
+
+// LoginUser ユーザーログイン
+func (u *UserUsecase) LoginUser(ctx context.Context, req *LoginUserRequest) (*LoginUserResponse, error) {
+	// Find user by email
+	user, err := u.userRepo.GetByEmail(ctx, req.Email)
+	if err != nil {
+		return nil, errors.New("invalid email or password")
+	}
+	if user == nil {
+		return nil, errors.New("invalid email or password")
+	}
+
+	// Verify password
+	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
+	if err != nil {
+		return nil, errors.New("invalid email or password")
+	}
+
+	// Generate JWT token
+	token, err := u.jwtService.GenerateToken(user.ID, user.Email)
+	if err != nil {
+		return nil, errors.New("failed to generate token")
+	}
+
+	return &LoginUserResponse{
+		ID:    user.ID,
+		Email: user.Email,
+		Name:  user.Name,
+		Token: token,
 	}, nil
 } 

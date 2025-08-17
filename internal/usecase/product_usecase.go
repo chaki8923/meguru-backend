@@ -267,7 +267,10 @@ func (u *ProductUsecase) UpdateStoreProduct(ctx context.Context, token string, s
 	// 店舗商品情報を更新
 	storeProduct.Price = req.Price
 	storeProduct.Quantity = req.Quantity
-	storeProduct.ImageURL = req.ImageURL
+	// 画像URLは新しいリクエストに含まれている場合のみ更新
+	if req.ImageURL != "" {
+		storeProduct.ImageURL = req.ImageURL
+	}
 	storeProduct.Status = req.Status
 
 	storeProduct, err = u.productRepository.UpdateStoreProduct(ctx, storeProduct)
@@ -425,7 +428,7 @@ func (u *ProductUsecase) ListStoreProducts(ctx context.Context, token string) ([
 		return nil, fmt.Errorf("invalid token: %w", err)
 	}
 
-	storeProducts, err := u.productRepository.ListStoreProductsByStoreID(ctx, storeID)
+	storeProducts, err := u.productRepository.ListStoreProductsByStoreID(ctx, storeID, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list store products: %w", err)
 	}

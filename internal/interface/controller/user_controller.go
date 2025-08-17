@@ -33,4 +33,21 @@ func (uc *UserController) CreateUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"data": user})
+}
+
+func (uc *UserController) LoginUser(c *gin.Context) {
+	var req usecase.LoginUserRequest
+	
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	response, err := uc.userUsecase.LoginUser(c.Request.Context(), &req)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": response})
 } 
