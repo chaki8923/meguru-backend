@@ -56,6 +56,7 @@ func main() {
 	defer db.Close()
 
 	userRepo := infraDB.NewUserRepository(db)
+	passwordResetTokenRepo := infraDB.NewPasswordResetTokenRepository(db)
 	storeRepo := infraDB.NewStoreRepository(db)
 	storeTokenRepo := infraDB.NewStoreEmailVerificationTokenRepository(db)
 	pushSubscriptionRepo := infraDB.NewPushSubscriptionRepository(db)
@@ -91,7 +92,7 @@ func main() {
 	jwtService := usecase.NewJWTService(jwtSecretKey)
 
 	// Initialize use cases
-	userUsecase := usecase.NewUserUsecase(userRepo, jwtService)
+	userUsecase := usecase.NewUserUsecase(userRepo, passwordResetTokenRepo, emailService, jwtService)
 	healthUsecase := usecase.NewHealthUsecase()
 	storeUsecase := usecase.NewStoreUsecase(storeRepo, storeTokenRepo, emailService, enableEmailVerification)
 	pushSubscriptionUsecase := usecase.NewPushSubscriptionUsecase(pushSubscriptionRepo, webPushService)

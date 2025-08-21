@@ -89,4 +89,14 @@ func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Use
 	user.ID = parsedID
 
 	return user, nil
+}
+
+func (r *userRepository) UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error {
+	query := `
+		UPDATE users 
+		SET password_hash = $1, updated_at = CURRENT_TIMESTAMP
+		WHERE user_id = $2`
+
+	_, err := r.db.ExecContext(ctx, query, passwordHash, userID.String())
+	return err
 } 
