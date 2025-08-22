@@ -64,6 +64,30 @@ type ResetPasswordResponse struct {
 	Message string `json:"message"`
 }
 
+type GetUserProfileResponse struct {
+	ID         uuid.UUID `json:"id"`
+	Email      string    `json:"email"`
+	Name       string    `json:"name"`
+	Zipcode    string    `json:"zipcode"`
+	Prefecture string    `json:"prefecture"`
+	City       string    `json:"city"`
+	Street     string    `json:"street"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+type UpdateUserProfileRequest struct {
+	Name       string `json:"name" binding:"required"`
+	Zipcode    string `json:"zipcode"`
+	Prefecture string `json:"prefecture"`
+	City       string `json:"city"`
+	Street     string `json:"street"`
+}
+
+type UpdateUserProfileResponse struct {
+	Message string `json:"message"`
+}
+
 // NewUserUsecase creates a new UserUsecase with the provided repositories and services.
 func NewUserUsecase(userRepo repository.UserRepository, passwordResetTokenRepo repository.PasswordResetTokenRepository, emailService *email.EmailService, jwtService *JWTService) *UserUsecase {
 	return &UserUsecase{
@@ -290,4 +314,55 @@ func (u *UserUsecase) sendPasswordResetEmail(ctx context.Context, user *entity.U
 </html>`
 
 	return u.emailService.SendEmail(user.Email, subject, body)
+}
+
+// GetUserProfile ユーザープロファイル取得
+func (u *UserUsecase) GetUserProfile(ctx context.Context, userID uuid.UUID) (*GetUserProfileResponse, error) {
+	user, err := u.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, errors.New("ユーザー情報の取得に失敗しました")
+	}
+	if user == nil {
+		return nil, errors.New("ユーザーが見つかりません")
+	}
+
+	return &GetUserProfileResponse{
+		ID:         user.ID,
+		Email:      user.Email,
+		Name:       user.Name,
+		Zipcode:    user.Zipcode,
+		Prefecture: user.Prefecture,
+		City:       user.City,
+		Street:     user.Street,
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
+	}, nil
+}
+
+// UpdateUserProfile ユーザープロファイル更新
+func (u *UserUsecase) UpdateUserProfile(ctx context.Context, userID uuid.UUID, req *UpdateUserProfileRequest) (*UpdateUserProfileResponse, error) {
+	// 現在のユーザー情報を取得
+	user, err := u.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, errors.New("ユーザー情報の取得に失敗しました")
+	}
+	if user == nil {
+		return nil, errors.New("ユーザーが見つかりません")
+	}
+
+	// プロファイル情報を更新
+	user.Name = req.Name
+	user.Zipcode = req.Zipcode
+	user.Prefecture = req.Prefecture
+	user.City = req.City
+	user.Street = req.Street
+	user.UpdatedAt = time.Now()
+
+	if err := u.userRepo.UpdateProfile(ctx, user); err != nil {
+		return nil, errors.New("プロファイルの更新に失敗しました")
+	}
+
+	return &UpdateUserProfileResponse{
+		Message: "プロファイルが正常に更新されました",
+	}, nil
 } 

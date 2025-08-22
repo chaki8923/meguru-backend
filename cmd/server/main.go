@@ -112,7 +112,7 @@ func main() {
 	tweetController := controller.NewTweetController(tweetUsecase)
 
 	// Initialize router
-	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController, productController, newsViewController, tweetController)
+	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController, productController, newsViewController, tweetController, jwtService)
 
 	port := os.Getenv("PORT")
 	if port == "" {

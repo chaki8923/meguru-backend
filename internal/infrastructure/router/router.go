@@ -2,12 +2,13 @@ package router
 
 import (
 	"meguru-backend/internal/interface/controller"
+	"meguru-backend/internal/usecase"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, productController *controller.ProductController, newsViewController *controller.NewsViewController, tweetController *controller.TweetController) *gin.Engine {
+func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, productController *controller.ProductController, newsViewController *controller.NewsViewController, tweetController *controller.TweetController, jwtService *usecase.JWTService) *gin.Engine {
 	r := gin.Default()
 
 	// CORS設定
@@ -38,6 +39,14 @@ func NewRouter(userController *controller.UserController, healthController *cont
 			users.POST("/login", userController.LoginUser)
 			users.POST("/forgot-password", userController.ForgotPassword)
 			users.POST("/reset-password", userController.ResetPassword)
+			
+			// 認証が必要なエンドポイント
+			protected := users.Group("")
+			protected.Use(UserAuthMiddleware(jwtService))
+			{
+				protected.GET("/profile", userController.GetProfile)
+				protected.PUT("/profile", userController.UpdateProfile)
+			}
 		}
 		stores := api.Group("/stores")
 		{
