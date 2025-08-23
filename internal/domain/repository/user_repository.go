@@ -13,4 +13,5 @@ type UserRepository interface {
 	GetByEmail(ctx context.Context, email string) (*entity.User, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*entity.User, error)
 	UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error
-}
+	UpdateProfile(ctx context.Context, user *entity.User) error
+} 

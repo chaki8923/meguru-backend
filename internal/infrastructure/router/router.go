@@ -39,6 +39,14 @@ func NewRouter(userController *controller.UserController, healthController *cont
 			users.POST("/login", userController.LoginUser)
 			users.POST("/forgot-password", userController.ForgotPassword)
 			users.POST("/reset-password", userController.ResetPassword)
+			
+			// 認証が必要なエンドポイント
+			protected := users.Group("")
+			protected.Use(UserAuthMiddleware(jwtService))
+			{
+				protected.GET("/profile", userController.GetProfile)
+				protected.PUT("/profile", userController.UpdateProfile)
+			}
 		}
 		stores := api.Group("/stores")
 		{

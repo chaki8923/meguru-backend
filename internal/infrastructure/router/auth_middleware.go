@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"meguru-backend/internal/usecase"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -63,6 +64,29 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		ctx.Set("storeID", storeID)
+		ctx.Next()
+	}
+}
+
+// UserAuthMiddleware ユーザー認証用のミドルウェア
+func UserAuthMiddleware(jwtService *usecase.JWTService) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		token, err := getTokenFromHeader(ctx)
+		if err != nil {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			ctx.Abort()
+			return
+		}
+
+		claims, err := jwtService.ValidateToken(token)
+		if err != nil {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			ctx.Abort()
+			return
+		}
+
+		ctx.Set("user_id", claims.UserID)
+		ctx.Set("user_email", claims.Email)
 		ctx.Next()
 	}
 }
