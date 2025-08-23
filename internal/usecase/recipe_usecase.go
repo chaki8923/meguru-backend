@@ -3,16 +3,20 @@ package usecase
 import (
 	"context"
 	"meguru-backend/internal/domain/repository"
+	"meguru-backend/internal/infrastructure/service"
 	dto "meguru-backend/internal/usecase/dto/recipes"
+	"strings"
 )
 
 type RecipeUsecase struct {
-	recipeRepo repository.RecipeRepository
+	recipeRepo    repository.RecipeRepository
+	openAIService *service.OpenAIService
 }
 
-func NewRecipeUsecase(recipeRepo repository.RecipeRepository) *RecipeUsecase {
+func NewRecipeUsecase(recipeRepo repository.RecipeRepository, openAIService *service.OpenAIService) *RecipeUsecase {
 	return &RecipeUsecase{
-		recipeRepo: recipeRepo,
+		recipeRepo:    recipeRepo,
+		openAIService: openAIService,
 	}
 }
 
@@ -96,5 +100,67 @@ func (u *RecipeUsecase) GetRecipeDetail(ctx context.Context, recipeID string) (*
 		Ingredients: ingredientDTOs,
 		Seasonings:  seasoningDTOs,
 		Steps:       stepDTOs,
+	}, nil
+}
+
+func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecipesByImageRequest) (*dto.GetRecipesByImageResponse, error) {
+	// 1. 画像から食材を取得
+	analysisResult, err := u.openAIService.GetIngredientsFromImage(req.ImageBase64)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. 解析結果から食材名を抽出（カンマ区切りを分割）
+	ingredientNames := strings.Split(analysisResult, ",")
+	for i, name := range ingredientNames {
+		ingredientNames[i] = strings.TrimSpace(name)
+	}
+
+	// 3. 食材名でレシピを検索
+	recipes, err := u.recipeRepo.SearchRecipesByIngredients(ctx, ingredientNames)
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. 各レシピの詳細情報を取得
+	var searchResults []*dto.RecipeResult
+	for _, recipe := range recipes {
+		// 食材情報を取得
+		ingredients, err := u.recipeRepo.GetRecipeIngredients(ctx, recipe.RecipeID)
+		if err != nil {
+			return nil, err
+		}
+
+		// 調味料情報を取得
+		seasonings, err := u.recipeRepo.GetRecipeSeasonings(ctx, recipe.RecipeID)
+		if err != nil {
+			return nil, err
+		}
+
+		// 食材名のリストを作成
+		var ingredientNames []string
+		for _, ingredient := range ingredients {
+			ingredientNames = append(ingredientNames, ingredient.Name)
+		}
+
+		// 調味料名のリストを作成
+		var seasoningNames []string
+		for _, seasoning := range seasonings {
+			seasoningNames = append(seasoningNames, seasoning.Name)
+		}
+
+		searchResult := &dto.RecipeResult{
+			RecipeID:    recipe.RecipeID,
+			Name:        recipe.Name,
+			CookTime:    recipe.CookTime,
+			Calories:    recipe.Calories,
+			Ingredients: ingredientNames,
+			Seasonings:  seasoningNames,
+		}
+		searchResults = append(searchResults, searchResult)
+	}
+
+	return &dto.GetRecipesByImageResponse{
+		Recipes: searchResults,
 	}, nil
 }

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"meguru-backend/internal/domain/entity"
 	"meguru-backend/internal/domain/repository"
+
+	"github.com/lib/pq"
 )
 
 type RecipeRepositoryImpl struct {
@@ -131,4 +133,40 @@ func (r *RecipeRepositoryImpl) GetRecipeSteps(ctx context.Context, recipeID stri
 	}
 
 	return steps, nil
+}
+
+func (r *RecipeRepositoryImpl) SearchRecipesByIngredients(ctx context.Context, ingredientNames []string) ([]*entity.Recipe, error) {
+	if len(ingredientNames) == 0 {
+		return []*entity.Recipe{}, nil
+	}
+
+	query := `
+		SELECT DISTINCT r.id, r.recipe_id, r.name, r.author_comment, r.cook_time, r.calories, r.total_price, r.cooking_point, r.image_data, r.created_at, r.updated_at
+		FROM recipes r
+		INNER JOIN recipe_ingredients ri ON r.recipe_id = ri.recipe_id
+		WHERE ri.name = ANY($1) AND r.deleted_at IS NULL AND ri.deleted_at IS NULL
+		ORDER BY r.name
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, pq.Array(ingredientNames))
+	if err != nil {
+		return nil, fmt.Errorf("failed to search recipes by ingredients: %w", err)
+	}
+	defer rows.Close()
+
+	var recipes []*entity.Recipe
+	for rows.Next() {
+		recipe := &entity.Recipe{}
+		err := rows.Scan(
+			&recipe.ID, &recipe.RecipeID, &recipe.Name, &recipe.AuthorComment,
+			&recipe.CookTime, &recipe.Calories, &recipe.TotalPrice, &recipe.CookingPoint,
+			&recipe.ImageData, &recipe.CreatedAt, &recipe.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan recipe: %w", err)
+		}
+		recipes = append(recipes, recipe)
+	}
+
+	return recipes, nil
 }

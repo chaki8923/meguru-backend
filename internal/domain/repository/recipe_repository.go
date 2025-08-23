@@ -10,4 +10,5 @@ type RecipeRepository interface {
 	GetRecipeIngredients(ctx context.Context, recipeID string) ([]*entity.RecipeIngredient, error)
 	GetRecipeSeasonings(ctx context.Context, recipeID string) ([]*entity.RecipeSeasoning, error)
 	GetRecipeSteps(ctx context.Context, recipeID string) ([]*entity.RecipeStep, error)
+	SearchRecipesByIngredients(ctx context.Context, ingredientNames []string) ([]*entity.Recipe, error)
 }
