@@ -10,14 +10,14 @@ import (
 	"meguru-backend/internal/domain/entity"
 	"meguru-backend/internal/domain/repository"
 	"meguru-backend/internal/infrastructure/email"
-	
+
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type UserUsecase struct {
-	userRepo                repository.UserRepository
-	passwordResetTokenRepo  repository.PasswordResetTokenRepository
+	userRepo               repository.UserRepository
+	passwordResetTokenRepo repository.PasswordResetTokenRepository
 	emailService           *email.EmailService
 	jwtService             *JWTService
 }
@@ -64,30 +64,26 @@ type ResetPasswordResponse struct {
 	Message string `json:"message"`
 }
 
-// NewUserUsecase creates a new UserUsecase with the provided repositories and services.
 func NewUserUsecase(userRepo repository.UserRepository, passwordResetTokenRepo repository.PasswordResetTokenRepository, emailService *email.EmailService, jwtService *JWTService) *UserUsecase {
 	return &UserUsecase{
 		userRepo:               userRepo,
 		passwordResetTokenRepo: passwordResetTokenRepo,
-		emailService:          emailService,
-		jwtService:            jwtService,
+		emailService:           emailService,
+		jwtService:             jwtService,
 	}
 }
 
 func (u *UserUsecase) CreateUser(ctx context.Context, req *CreateUserRequest) (*CreateUserResponse, error) {
-	// Check if user already exists
 	existingUser, _ := u.userRepo.GetByEmail(ctx, req.Email)
 	if existingUser != nil {
 		return nil, errors.New("user with this email already exists")
 	}
 
-	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create user entity
 	user := &entity.User{
 		ID:           uuid.New(),
 		Email:        req.Email,
@@ -97,7 +93,6 @@ func (u *UserUsecase) CreateUser(ctx context.Context, req *CreateUserRequest) (*
 		UpdatedAt:    time.Now(),
 	}
 
-	// Save user
 	if err := u.userRepo.Create(ctx, user); err != nil {
 		return nil, err
 	}
@@ -110,9 +105,7 @@ func (u *UserUsecase) CreateUser(ctx context.Context, req *CreateUserRequest) (*
 	}, nil
 }
 
-// LoginUser ユーザーログイン
 func (u *UserUsecase) LoginUser(ctx context.Context, req *LoginUserRequest) (*LoginUserResponse, error) {
-	// Find user by email
 	user, err := u.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
 		return nil, errors.New("invalid email or password")
@@ -121,13 +114,11 @@ func (u *UserUsecase) LoginUser(ctx context.Context, req *LoginUserRequest) (*Lo
 		return nil, errors.New("invalid email or password")
 	}
 
-	// Verify password
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
 	if err != nil {
 		return nil, errors.New("invalid email or password")
 	}
 
-	// Generate JWT token
 	token, err := u.jwtService.GenerateToken(user.ID, user.Email)
 	if err != nil {
 		return nil, errors.New("failed to generate token")
@@ -159,13 +150,11 @@ func (u *UserUsecase) ForgotPassword(ctx context.Context, req *ForgotPasswordReq
 		return nil, errors.New("パスワードリセット申請に失敗しました")
 	}
 
-	// ランダムトークンを生成
 	token, err := generateSecureToken(32)
 	if err != nil {
 		return nil, errors.New("パスワードリセット申請に失敗しました")
 	}
 
-	// トークンを保存（24時間有効）
 	resetToken := &entity.PasswordResetToken{
 		ID:        uuid.New(),
 		UserID:    user.ID,
@@ -180,7 +169,6 @@ func (u *UserUsecase) ForgotPassword(ctx context.Context, req *ForgotPasswordReq
 		return nil, errors.New("パスワードリセット申請に失敗しました")
 	}
 
-	// メール送信
 	if u.emailService != nil {
 		if err := u.sendPasswordResetEmail(ctx, user, token); err != nil {
 			// メール送信失敗はログに記録するのみ
@@ -193,7 +181,6 @@ func (u *UserUsecase) ForgotPassword(ctx context.Context, req *ForgotPasswordReq
 
 // ResetPassword トークンを使用してパスワードをリセット
 func (u *UserUsecase) ResetPassword(ctx context.Context, req *ResetPasswordRequest) (*ResetPasswordResponse, error) {
-	// トークンを取得・検証
 	resetToken, err := u.passwordResetTokenRepo.FindByToken(ctx, req.Token)
 	if err != nil {
 		return nil, errors.New("無効なトークンです")
@@ -233,7 +220,6 @@ func (u *UserUsecase) ResetPassword(ctx context.Context, req *ResetPasswordReque
 	return &ResetPasswordResponse{Message: "パスワードが正常に変更されました"}, nil
 }
 
-// generateSecureToken セキュアなランダムトークンを生成
 func generateSecureToken(length int) (string, error) {
 	bytes := make([]byte, length)
 	_, err := rand.Read(bytes)
@@ -246,7 +232,7 @@ func generateSecureToken(length int) (string, error) {
 // sendPasswordResetEmail パスワードリセットメールを送信
 func (u *UserUsecase) sendPasswordResetEmail(ctx context.Context, user *entity.User, token string) error {
 	resetURL := "http://localhost:3000/auth/reset-password?token=" + token
-	
+
 	subject := "【meguru】パスワードリセットのご依頼"
 	body := `
 <html>
@@ -290,4 +276,4 @@ func (u *UserUsecase) sendPasswordResetEmail(ctx context.Context, user *entity.U
 </html>`
 
 	return u.emailService.SendEmail(user.Email, subject, body)
-} 
+}
