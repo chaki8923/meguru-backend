@@ -47,64 +47,25 @@ func (u *RecipeUsecase) GetRecipeDetail(ctx context.Context, recipeID string) (*
 		return nil, err
 	}
 
-	// 手順情報を取得
-	steps, err := u.recipeRepo.GetRecipeSteps(ctx, recipeID)
-	if err != nil {
-		return nil, err
-	}
-
-	// DTOに変換
-	recipeDetail := &dto.RecipeDetail{
-		ID:            recipe.ID,
-		RecipeID:      recipe.RecipeID,
-		Name:          recipe.Name,
-		AuthorComment: recipe.AuthorComment,
-		CookTime:      recipe.CookTime,
-		Calories:      recipe.Calories,
-		TotalPrice:    recipe.TotalPrice,
-		CookingPoint:  recipe.CookingPoint,
-		ImageData:     recipe.ImageData,
-		CreatedAt:     recipe.CreatedAt,
-		UpdatedAt:     recipe.UpdatedAt,
-	}
-
-	// 材料DTOに変換
-	var ingredientDTOs []*dto.RecipeIngredient
+	// 材料名のリストを作成
+	var ingredientNames []string
 	for _, ingredient := range ingredients {
-		ingredientDTOs = append(ingredientDTOs, &dto.RecipeIngredient{
-			ID:           ingredient.ID,
-			Name:         ingredient.Name,
-			DisplayOrder: ingredient.DisplayOrder,
-			AmountText:   ingredient.AmountText,
-		})
+		ingredientNames = append(ingredientNames, ingredient.Name)
 	}
 
-	// 調味料DTOに変換
-	var seasoningDTOs []*dto.RecipeSeasoning
+	// 調味料名のリストを作成
+	var seasoningNames []string
 	for _, seasoning := range seasonings {
-		seasoningDTOs = append(seasoningDTOs, &dto.RecipeSeasoning{
-			ID:           seasoning.ID,
-			Name:         seasoning.Name,
-			DisplayOrder: seasoning.DisplayOrder,
-			AmountText:   seasoning.AmountText,
-		})
-	}
-
-	// 手順DTOに変換
-	var stepDTOs []*dto.RecipeStep
-	for _, step := range steps {
-		stepDTOs = append(stepDTOs, &dto.RecipeStep{
-			ID:          step.ID,
-			Instruction: step.Instruction,
-			StepNumber:  step.StepNumber,
-		})
+		seasoningNames = append(seasoningNames, seasoning.Name)
 	}
 
 	return &dto.GetRecipeDetailResponse{
-		Recipe:      recipeDetail,
-		Ingredients: ingredientDTOs,
-		Seasonings:  seasoningDTOs,
-		Steps:       stepDTOs,
+		RecipeID:    recipe.RecipeID,
+		Name:        recipe.Name,
+		CookTime:    recipe.CookTime,
+		Calories:    recipe.Calories,
+		Ingredients: ingredientNames,
+		Seasonings:  seasoningNames,
 	}, nil
 }
 
@@ -211,5 +172,67 @@ func (u *RecipeUsecase) SaveRecipe(ctx context.Context, req *dto.SaveRecipeReque
 		UserID:        savedRecipe.UserID,
 		SavedAt:       savedRecipe.SavedAt,
 		Message:       "Recipe saved successfully",
+	}, nil
+}
+
+func (u *RecipeUsecase) GetSavedRecipes(ctx context.Context, userID string) (*dto.GetRecipesByImageResponse, error) {
+	// 1. ユーザーが保存したレシピ一覧を取得
+	savedRecipes, err := u.recipeRepo.GetSavedRecipesByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. 各保存レシピの詳細情報を取得
+	var recipeResults []*dto.RecipeResult
+	for _, savedRecipe := range savedRecipes {
+		// レシピ詳細情報を取得
+		recipe, err := u.recipeRepo.GetRecipeByID(ctx, savedRecipe.RecipeID)
+		if err != nil {
+			return nil, err
+		}
+		if recipe == nil {
+			// レシピが削除されている場合はスキップ
+			continue
+		}
+
+		// 材料情報を取得
+		ingredients, err := u.recipeRepo.GetRecipeIngredients(ctx, savedRecipe.RecipeID)
+		if err != nil {
+			return nil, err
+		}
+
+		// 調味料情報を取得
+		seasonings, err := u.recipeRepo.GetRecipeSeasonings(ctx, savedRecipe.RecipeID)
+		if err != nil {
+			return nil, err
+		}
+
+		// 材料名のリストを作成
+		var ingredientNames []string
+		for _, ingredient := range ingredients {
+			ingredientNames = append(ingredientNames, ingredient.Name)
+		}
+
+		// 調味料名のリストを作成
+		var seasoningNames []string
+		for _, seasoning := range seasonings {
+			seasoningNames = append(seasoningNames, seasoning.Name)
+		}
+
+		// レシピ詳細DTOを作成
+		recipeResult := &dto.RecipeResult{
+			RecipeID:    recipe.RecipeID,
+			Name:        recipe.Name,
+			CookTime:    recipe.CookTime,
+			Calories:    recipe.Calories,
+			Ingredients: ingredientNames,
+			Seasonings:  seasoningNames,
+		}
+
+		recipeResults = append(recipeResults, recipeResult)
+	}
+
+	return &dto.GetRecipesByImageResponse{
+		Recipes: recipeResults,
 	}, nil
 }

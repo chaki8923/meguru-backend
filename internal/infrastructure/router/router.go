@@ -107,6 +107,7 @@ func NewRouter(userController *controller.UserController, healthController *cont
 		savedRecipes.Use(UserAuthMiddleware(jwtService))
 		{
 			savedRecipes.POST("", recipeController.SaveRecipe)
+			savedRecipes.GET("", recipeController.GetSavedRecipes)
 		}
 	}
 

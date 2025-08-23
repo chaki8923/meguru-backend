@@ -13,4 +13,5 @@ type RecipeRepository interface {
 	SearchRecipesByIngredients(ctx context.Context, ingredientNames []string) ([]*entity.Recipe, error)
 	SaveRecipe(ctx context.Context, savedRecipe *entity.SavedRecipe) error
 	GetSavedRecipeByUserAndRecipe(ctx context.Context, userID, recipeID string) (*entity.SavedRecipe, error)
+	GetSavedRecipesByUser(ctx context.Context, userID string) ([]*entity.SavedRecipe, error)
 }
