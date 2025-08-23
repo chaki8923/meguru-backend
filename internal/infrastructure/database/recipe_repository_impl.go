@@ -170,3 +170,53 @@ func (r *RecipeRepositoryImpl) SearchRecipesByIngredients(ctx context.Context, i
 
 	return recipes, nil
 }
+
+func (r *RecipeRepositoryImpl) SaveRecipe(ctx context.Context, savedRecipe *entity.SavedRecipe) error {
+	query := `
+		INSERT INTO saved_recipes (saved_recipe_id, recipe_id, user_id, saved_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`
+
+	_, err := r.db.ExecContext(ctx, query,
+		savedRecipe.SavedRecipeID,
+		savedRecipe.RecipeID,
+		savedRecipe.UserID,
+		savedRecipe.SavedAt,
+		savedRecipe.CreatedAt,
+		savedRecipe.UpdatedAt,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to save recipe: %w", err)
+	}
+
+	return nil
+}
+
+func (r *RecipeRepositoryImpl) GetSavedRecipeByUserAndRecipe(ctx context.Context, userID, recipeID string) (*entity.SavedRecipe, error) {
+	query := `
+		SELECT id, saved_recipe_id, recipe_id, user_id, saved_at, created_at, updated_at
+		FROM saved_recipes
+		WHERE user_id = $1 AND recipe_id = $2 AND deleted_at IS NULL
+	`
+
+	savedRecipe := &entity.SavedRecipe{}
+	err := r.db.QueryRowContext(ctx, query, userID, recipeID).Scan(
+		&savedRecipe.ID,
+		&savedRecipe.SavedRecipeID,
+		&savedRecipe.RecipeID,
+		&savedRecipe.UserID,
+		&savedRecipe.SavedAt,
+		&savedRecipe.CreatedAt,
+		&savedRecipe.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get saved recipe: %w", err)
+	}
+
+	return savedRecipe, nil
+}

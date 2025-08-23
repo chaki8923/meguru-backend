@@ -2,12 +2,13 @@ package router
 
 import (
 	"meguru-backend/internal/interface/controller"
+	"meguru-backend/internal/usecase"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, productController *controller.ProductController, newsViewController *controller.NewsViewController, tweetController *controller.TweetController, recipeController *controller.RecipeController) *gin.Engine {
+func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, productController *controller.ProductController, newsViewController *controller.NewsViewController, tweetController *controller.TweetController, recipeController *controller.RecipeController, jwtService *usecase.JWTService) *gin.Engine {
 	r := gin.Default()
 
 	// CORS設定
@@ -100,6 +101,13 @@ func NewRouter(userController *controller.UserController, healthController *cont
 
 		// 画像からレシピ取得エンドポイント
 		api.POST("/recipes-from-image", recipeController.GetRecipesByImage)
+
+		// レシピ保存エンドポイント（認証必須）
+		recipesAuth := api.Group("/recipes")
+		recipesAuth.Use(UserAuthMiddleware(jwtService))
+		{
+			recipesAuth.POST("", recipeController.SaveRecipe)
+		}
 	}
 
 	return r

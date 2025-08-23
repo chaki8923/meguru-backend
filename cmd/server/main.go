@@ -119,7 +119,7 @@ func main() {
 	recipeController := controller.NewRecipeController(recipeUsecase)
 
 	// Initialize router
-	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController, productController, newsViewController, tweetController, recipeController)
+	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController, productController, newsViewController, tweetController, recipeController, jwtService)
 
 	port := os.Getenv("PORT")
 	if port == "" {

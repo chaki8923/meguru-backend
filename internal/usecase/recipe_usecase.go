@@ -2,10 +2,15 @@ package usecase
 
 import (
 	"context"
+	"errors"
+	"meguru-backend/internal/domain/entity"
 	"meguru-backend/internal/domain/repository"
 	"meguru-backend/internal/infrastructure/service"
 	dto "meguru-backend/internal/usecase/dto/recipes"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 type RecipeUsecase struct {
@@ -162,5 +167,49 @@ func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecip
 
 	return &dto.GetRecipesByImageResponse{
 		Recipes: searchResults,
+	}, nil
+}
+
+func (u *RecipeUsecase) SaveRecipe(ctx context.Context, req *dto.SaveRecipeRequest, userID string) (*dto.SaveRecipeResponse, error) {
+	// 1. 既に保存されているかチェック
+	existingSavedRecipe, err := u.recipeRepo.GetSavedRecipeByUserAndRecipe(ctx, userID, req.RecipeID)
+	if err != nil {
+		return nil, err
+	}
+	if existingSavedRecipe != nil {
+		return nil, errors.New("recipe is already saved by this user")
+	}
+
+	// 2. レシピが存在するかチェック
+	recipe, err := u.recipeRepo.GetRecipeByID(ctx, req.RecipeID)
+	if err != nil {
+		return nil, err
+	}
+	if recipe == nil {
+		return nil, errors.New("recipe not found")
+	}
+
+	// 3. 保存レシピエンティティを作成
+	savedRecipe := &entity.SavedRecipe{
+		SavedRecipeID: uuid.New().String(),
+		RecipeID:      req.RecipeID,
+		UserID:        userID,
+		SavedAt:       time.Now(),
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+
+	// 4. データベースに保存
+	err = u.recipeRepo.SaveRecipe(ctx, savedRecipe)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.SaveRecipeResponse{
+		SavedRecipeID: savedRecipe.SavedRecipeID,
+		RecipeID:      savedRecipe.RecipeID,
+		UserID:        savedRecipe.UserID,
+		SavedAt:       savedRecipe.SavedAt,
+		Message:       "Recipe saved successfully",
 	}, nil
 }
