@@ -24,7 +24,6 @@ func main() {
 		log.Println("No .env file found")
 	}
 
-    
 	// Database configuration
 	dbConfig := database.GetConfigFromEnv()
 
@@ -65,6 +64,7 @@ func main() {
 	newsViewRepo := infraDB.NewNewsViewRepository(db)
 	tweetRepo := infraDB.NewTweetRepository(db)
 	tweetLikeRepo := infraDB.NewTweetLikeRepository(db)
+	recipeRepo := infraDB.NewRecipeRepository(db)
 
 	// Initialize email service
 	emailHost := os.Getenv("EMAIL_HOST")
@@ -100,6 +100,7 @@ func main() {
 	productUsecase := usecase.NewProductUsecase(productRepo, storeRepo, r2Service)
 	newsViewUsecase := usecase.NewNewsViewUsecase(newsViewRepo, storeRepo)
 	tweetUsecase := usecase.NewTweetUsecase(tweetRepo, tweetLikeRepo, storeRepo)
+	recipeUsecase := usecase.NewRecipeUsecase(recipeRepo)
 
 	// Initialize controllers
 	userController := controller.NewUserController(userUsecase)
@@ -110,9 +111,10 @@ func main() {
 	productController := controller.NewProductController(productUsecase)
 	newsViewController := controller.NewNewsViewController(newsViewUsecase)
 	tweetController := controller.NewTweetController(tweetUsecase)
+	recipeController := controller.NewRecipeController(recipeUsecase)
 
 	// Initialize router
-	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController, productController, newsViewController, tweetController)
+	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController, productController, newsViewController, tweetController, recipeController)
 
 	port := os.Getenv("PORT")
 	if port == "" {
