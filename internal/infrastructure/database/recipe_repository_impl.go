@@ -220,3 +220,38 @@ func (r *RecipeRepositoryImpl) GetSavedRecipeByUserAndRecipe(ctx context.Context
 
 	return savedRecipe, nil
 }
+
+func (r *RecipeRepositoryImpl) GetSavedRecipesByUser(ctx context.Context, userID string) ([]*entity.SavedRecipe, error) {
+	query := `
+		SELECT id, saved_recipe_id, recipe_id, user_id, saved_at, created_at, updated_at
+		FROM saved_recipes
+		WHERE user_id = $1 AND deleted_at IS NULL
+		ORDER BY saved_at DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get saved recipes by user: %w", err)
+	}
+	defer rows.Close()
+
+	var savedRecipes []*entity.SavedRecipe
+	for rows.Next() {
+		savedRecipe := &entity.SavedRecipe{}
+		err := rows.Scan(
+			&savedRecipe.ID,
+			&savedRecipe.SavedRecipeID,
+			&savedRecipe.RecipeID,
+			&savedRecipe.UserID,
+			&savedRecipe.SavedAt,
+			&savedRecipe.CreatedAt,
+			&savedRecipe.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan saved recipe: %w", err)
+		}
+		savedRecipes = append(savedRecipes, savedRecipe)
+	}
+
+	return savedRecipes, nil
+}

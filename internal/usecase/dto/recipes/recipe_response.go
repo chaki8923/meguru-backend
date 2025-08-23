@@ -5,10 +5,12 @@ import (
 )
 
 type GetRecipeDetailResponse struct {
-	Recipe      *RecipeDetail       `json:"recipe"`
-	Ingredients []*RecipeIngredient `json:"ingredients"`
-	Seasonings  []*RecipeSeasoning  `json:"seasonings"`
-	Steps       []*RecipeStep       `json:"steps"`
+	RecipeID    string   `json:"recipe_id"`
+	Name        string   `json:"name"`
+	CookTime    int      `json:"cook_time"`
+	Calories    int      `json:"calories"`
+	Ingredients []string `json:"ingredients"`
+	Seasonings  []string `json:"seasonings"`
 }
 
 type RecipeDetail struct {
