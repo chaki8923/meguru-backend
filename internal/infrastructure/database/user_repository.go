@@ -78,7 +78,6 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*entity.
 		return nil, err
 	}
 
-	// user_id文字列をUUIDに変換
 	parsedID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		return nil, err
@@ -115,7 +114,6 @@ func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Use
 		return nil, err
 	}
 
-	// user_id文字列をUUIDに変換
 	parsedID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		return nil, err

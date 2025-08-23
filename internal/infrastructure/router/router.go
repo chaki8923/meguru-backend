@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, productController *controller.ProductController, newsViewController *controller.NewsViewController, tweetController *controller.TweetController, jwtService *usecase.JWTService) *gin.Engine {
+func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, productController *controller.ProductController, newsViewController *controller.NewsViewController, tweetController *controller.TweetController, recipeController *controller.RecipeController, jwtService *usecase.JWTService) *gin.Engine {
 	r := gin.Default()
 
 	// CORS設定
@@ -54,7 +54,7 @@ func NewRouter(userController *controller.UserController, healthController *cont
 			stores.GET("", storeController.GetAllStores)
 			stores.PUT("/:id", storeController.UpdateStore)
 			stores.POST("/signin", storeController.SignIn)
-			
+
 			// 認証が必要なエンドポイント
 			stores.GET("/profile", storeController.GetProfile)
 			stores.PUT("/profile", storeController.UpdateProfile)
@@ -67,11 +67,11 @@ func NewRouter(userController *controller.UserController, healthController *cont
 		flyer := api.Group("/flyer")
 		{
 			flyer.POST("/upload", flyerController.UploadFlyer)
-			flyer.GET("/nearby", flyerController.GetNearbyFlyers)  // 近隣店舗チラシ取得
+			flyer.GET("/nearby", flyerController.GetNearbyFlyers) // 近隣店舗チラシ取得
 			flyer.GET("/:store_id", flyerController.GetFlyerByStoreID)
 			flyer.GET("/all/:store_id", flyerController.GetAllFlyersByStoreID)
 		}
-		
+
 		// 商品関連のエンドポイント（認証必須）
 		products := api.Group("/products")
 		{
@@ -81,13 +81,13 @@ func NewRouter(userController *controller.UserController, healthController *cont
 			products.PUT("/:id", productController.UpdateStoreProduct)
 			products.DELETE("/:id", productController.DeleteStoreProduct)
 		}
-		
+
 		// ニュース閲覧関連のエンドポイント
 		news := api.Group("/news")
 		{
-			news.POST("/view", newsViewController.RecordNewsView)           // ニュース閲覧記録
+			news.POST("/view", newsViewController.RecordNewsView)                 // ニュース閲覧記録
 			news.GET("/view-count/:news_id", newsViewController.GetNewsViewCount) // 単一ニュース閲覧数
-			news.POST("/view-counts", newsViewController.GetNewsViewCounts) // 複数ニュース閲覧数
+			news.POST("/view-counts", newsViewController.GetNewsViewCounts)       // 複数ニュース閲覧数
 		}
 
 		// ツイート関連のエンドポイント
@@ -100,7 +100,24 @@ func NewRouter(userController *controller.UserController, healthController *cont
 			tweets.POST("/:id/like", tweetController.LikeTweet)
 			tweets.DELETE("/:id/like", tweetController.UnlikeTweet)
 		}
+
+		// レシピ関連のエンドポイント
+		recipes := api.Group("/recipes")
+		{
+			recipes.GET("/:recipe_id", recipeController.GetRecipeDetail)
+		}
+
+		// 画像からレシピ取得エンドポイント
+		api.POST("/recipes-from-image", recipeController.GetRecipesByImage)
+
+		// 保存レシピ関連のエンドポイント（認証必須）
+		savedRecipes := api.Group("/saved-recipes")
+		savedRecipes.Use(UserAuthMiddleware(jwtService))
+		{
+			savedRecipes.POST("", recipeController.SaveRecipe)
+			savedRecipes.GET("", recipeController.GetSavedRecipes)
+		}
 	}
 
 	return r
-} 
+}
