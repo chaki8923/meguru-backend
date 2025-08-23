@@ -97,6 +97,9 @@ func NewRouter(userController *controller.UserController, healthController *cont
 		{
 			recipes.GET("/:recipe_id", recipeController.GetRecipeDetail)
 		}
+
+		// 画像からレシピ取得エンドポイント
+		api.POST("/recipes-from-image", recipeController.GetRecipesByImage)
 	}
 
 	return r

@@ -10,6 +10,7 @@ import (
 	infraDB "meguru-backend/internal/infrastructure/database"
 	"meguru-backend/internal/infrastructure/email"
 	"meguru-backend/internal/infrastructure/router"
+	"meguru-backend/internal/infrastructure/service"
 	"meguru-backend/internal/infrastructure/storage"
 	"meguru-backend/internal/infrastructure/webpush"
 	"meguru-backend/internal/interface/controller"
@@ -79,6 +80,10 @@ func main() {
 	// Initialize R2 storage service
 	r2Service := storage.NewR2Service()
 
+	// Initialize OpenAI service
+	openAIAPIKey := os.Getenv("OPENAI_API_KEY")
+	openAIService := service.NewOpenAIService(openAIAPIKey)
+
 	// メール認証機能の有効/無効を環境変数から取得（デフォルトは無効）
 	enableEmailVerification := os.Getenv("ENABLE_EMAIL_VERIFICATION") == "true"
 
@@ -100,7 +105,7 @@ func main() {
 	productUsecase := usecase.NewProductUsecase(productRepo, storeRepo, r2Service)
 	newsViewUsecase := usecase.NewNewsViewUsecase(newsViewRepo, storeRepo)
 	tweetUsecase := usecase.NewTweetUsecase(tweetRepo, tweetLikeRepo, storeRepo)
-	recipeUsecase := usecase.NewRecipeUsecase(recipeRepo)
+	recipeUsecase := usecase.NewRecipeUsecase(recipeRepo, openAIService)
 
 	// Initialize controllers
 	userController := controller.NewUserController(userUsecase)
