@@ -9,6 +9,7 @@ type RecipeResult struct {
 	Name        string   `json:"name"`
 	CookTime    int      `json:"cook_time"`
 	Calories    int      `json:"calories"`
+	ImageURL    string   `json:"image_url,omitempty"`
 	Ingredients []string `json:"ingredients"`
 	Seasonings  []string `json:"seasonings"`
 }

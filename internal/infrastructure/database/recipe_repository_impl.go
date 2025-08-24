@@ -141,7 +141,7 @@ func (r *RecipeRepositoryImpl) SearchRecipesByIngredients(ctx context.Context, i
 	}
 
 	query := `
-		SELECT DISTINCT r.id, r.recipe_id, r.name, r.author_comment, r.cook_time, r.calories, r.total_price, r.cooking_point, r.image_data, r.created_at, r.updated_at
+		SELECT DISTINCT r.id, r.recipe_id, r.name, r.author_comment, r.cook_time, r.calories, r.total_price, r.cooking_point, r.image_url, r.created_at, r.updated_at
 		FROM recipes r
 		INNER JOIN recipe_ingredients ri ON r.recipe_id = ri.recipe_id
 		WHERE ri.name = ANY($1) AND r.deleted_at IS NULL AND ri.deleted_at IS NULL

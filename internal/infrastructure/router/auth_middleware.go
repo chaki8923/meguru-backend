@@ -1,4 +1,3 @@
-
 package router
 
 import (
@@ -7,6 +6,7 @@ import (
 	"strings"
 
 	"meguru-backend/internal/usecase"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -85,7 +85,7 @@ func UserAuthMiddleware(jwtService *usecase.JWTService) gin.HandlerFunc {
 			return
 		}
 
-		ctx.Set("user_id", claims.UserID)
+		ctx.Set("user_id", claims.UserID.String())
 		ctx.Set("user_email", claims.Email)
 		ctx.Next()
 	}

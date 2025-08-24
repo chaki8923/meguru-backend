@@ -47,25 +47,67 @@ func (u *RecipeUsecase) GetRecipeDetail(ctx context.Context, recipeID string) (*
 		return nil, err
 	}
 
-	// 材料名のリストを作成
-	var ingredientNames []string
-	for _, ingredient := range ingredients {
-		ingredientNames = append(ingredientNames, ingredient.Name)
+	// 調理手順を取得
+	steps, err := u.recipeRepo.GetRecipeSteps(ctx, recipeID)
+	if err != nil {
+		return nil, err
 	}
 
-	// 調味料名のリストを作成
-	var seasoningNames []string
+	// レシピ詳細DTOを作成
+	recipeDetail := &dto.RecipeDetail{
+		ID:            recipe.ID,
+		RecipeID:      recipe.RecipeID,
+		Name:          recipe.Name,
+		AuthorComment: recipe.AuthorComment,
+		CookTime:      recipe.CookTime,
+		Calories:      recipe.Calories,
+		TotalPrice:    recipe.TotalPrice,
+		CookingPoint:  recipe.CookingPoint,
+		ImageURL:      recipe.ImageURL,
+		CreatedAt:     recipe.CreatedAt,
+		UpdatedAt:     recipe.UpdatedAt,
+	}
+
+	// 材料DTOを作成
+	var ingredientDTOs []*dto.RecipeIngredient
+	for _, ingredient := range ingredients {
+		ingredientDTO := &dto.RecipeIngredient{
+			ID:           ingredient.ID,
+			Name:         ingredient.Name,
+			DisplayOrder: ingredient.DisplayOrder,
+			AmountText:   ingredient.AmountText,
+		}
+		ingredientDTOs = append(ingredientDTOs, ingredientDTO)
+	}
+
+	// 調味料DTOを作成
+	var seasoningDTOs []*dto.RecipeSeasoning
 	for _, seasoning := range seasonings {
-		seasoningNames = append(seasoningNames, seasoning.Name)
+		seasoningDTO := &dto.RecipeSeasoning{
+			ID:           seasoning.ID,
+			Name:         seasoning.Name,
+			DisplayOrder: seasoning.DisplayOrder,
+			AmountText:   seasoning.AmountText,
+		}
+		seasoningDTOs = append(seasoningDTOs, seasoningDTO)
+	}
+
+	// 調理手順DTOを作成
+	var stepDTOs []*dto.RecipeStep
+	for _, step := range steps {
+		stepDTO := &dto.RecipeStep{
+			ID:          step.ID,
+			Instruction: step.Instruction,
+			StepNumber:  step.StepNumber,
+		}
+		stepDTOs = append(stepDTOs, stepDTO)
 	}
 
 	return &dto.GetRecipeDetailResponse{
-		RecipeID:    recipe.RecipeID,
-		Name:        recipe.Name,
-		CookTime:    recipe.CookTime,
-		Calories:    recipe.Calories,
-		Ingredients: ingredientNames,
-		Seasonings:  seasoningNames,
+		Recipe:      recipeDetail,
+		Ingredients: ingredientDTOs,
+		Seasonings:  seasoningDTOs,
+		Steps:       stepDTOs,
 	}, nil
 }
 
@@ -120,6 +162,7 @@ func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecip
 			Name:        recipe.Name,
 			CookTime:    recipe.CookTime,
 			Calories:    recipe.Calories,
+			ImageURL:    recipe.ImageURL,
 			Ingredients: ingredientNames,
 			Seasonings:  seasoningNames,
 		}
@@ -225,6 +268,7 @@ func (u *RecipeUsecase) GetSavedRecipes(ctx context.Context, userID string) (*dt
 			Name:        recipe.Name,
 			CookTime:    recipe.CookTime,
 			Calories:    recipe.Calories,
+			ImageURL:    recipe.ImageURL,
 			Ingredients: ingredientNames,
 			Seasonings:  seasoningNames,
 		}
