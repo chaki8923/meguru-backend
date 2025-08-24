@@ -280,3 +280,24 @@ func (u *RecipeUsecase) GetSavedRecipes(ctx context.Context, userID string) (*dt
 		Recipes: recipeResults,
 	}, nil
 }
+
+func (u *RecipeUsecase) DeleteSavedRecipe(ctx context.Context, req *dto.DeleteSavedRecipeRequest, userID string) (*dto.DeleteSavedRecipeResponse, error) {
+	// 1. 保存レシピが存在するかチェック
+	savedRecipe, err := u.recipeRepo.GetSavedRecipeByUserAndRecipe(ctx, userID, req.RecipeID)
+	if err != nil {
+		return nil, err
+	}
+	if savedRecipe == nil {
+		return nil, errors.New("saved recipe not found")
+	}
+
+	// 2. 保存レシピを削除（論理削除）
+	err = u.recipeRepo.DeleteSavedRecipe(ctx, userID, req.RecipeID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.DeleteSavedRecipeResponse{
+		Message: "Recipe removed from saved recipes successfully",
+	}, nil
+}

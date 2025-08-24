@@ -92,3 +92,26 @@ func (c *RecipeController) GetSavedRecipes(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{"data": result})
 }
+
+func (c *RecipeController) DeleteSavedRecipe(ctx *gin.Context) {
+	// JWTトークンからユーザーIDを取得
+	userID, exists := ctx.Get("user_id")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
+	var req dto.DeleteSavedRecipeRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result, err := c.recipeUsecase.DeleteSavedRecipe(ctx.Request.Context(), &req, userID.(string))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"data": result})
+}

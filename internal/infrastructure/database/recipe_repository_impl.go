@@ -255,3 +255,55 @@ func (r *RecipeRepositoryImpl) GetSavedRecipesByUser(ctx context.Context, userID
 
 	return savedRecipes, nil
 }
+
+func (r *RecipeRepositoryImpl) GetSavedRecipeByID(ctx context.Context, savedRecipeID string) (*entity.SavedRecipe, error) {
+	query := `
+		SELECT id, saved_recipe_id, recipe_id, user_id, saved_at, created_at, updated_at
+		FROM saved_recipes
+		WHERE saved_recipe_id = $1 AND deleted_at IS NULL
+	`
+
+	savedRecipe := &entity.SavedRecipe{}
+	err := r.db.QueryRowContext(ctx, query, savedRecipeID).Scan(
+		&savedRecipe.ID,
+		&savedRecipe.SavedRecipeID,
+		&savedRecipe.RecipeID,
+		&savedRecipe.UserID,
+		&savedRecipe.SavedAt,
+		&savedRecipe.CreatedAt,
+		&savedRecipe.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get saved recipe by ID: %w", err)
+	}
+
+	return savedRecipe, nil
+}
+
+func (r *RecipeRepositoryImpl) DeleteSavedRecipe(ctx context.Context, userID, recipeID string) error {
+	query := `
+		UPDATE saved_recipes
+		SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+		WHERE user_id = $1 AND recipe_id = $2 AND deleted_at IS NULL
+	`
+
+	result, err := r.db.ExecContext(ctx, query, userID, recipeID)
+	if err != nil {
+		return fmt.Errorf("failed to delete saved recipe: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("saved recipe not found or already deleted")
+	}
+
+	return nil
+}
