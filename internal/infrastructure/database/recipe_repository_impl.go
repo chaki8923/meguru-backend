@@ -20,7 +20,7 @@ func NewRecipeRepository(db *sql.DB) repository.RecipeRepository {
 
 func (r *RecipeRepositoryImpl) GetRecipeByID(ctx context.Context, recipeID string) (*entity.Recipe, error) {
 	query := `
-		SELECT id, recipe_id, name, author_comment, cook_time, calories, total_price, cooking_point, image_data, created_at, updated_at
+		SELECT id, recipe_id, name, author_comment, cook_time, calories, total_price, cooking_point, image_url, created_at, updated_at
 		FROM recipes
 		WHERE recipe_id = $1 AND deleted_at IS NULL
 	`
@@ -29,7 +29,7 @@ func (r *RecipeRepositoryImpl) GetRecipeByID(ctx context.Context, recipeID strin
 	err := r.db.QueryRowContext(ctx, query, recipeID).Scan(
 		&recipe.ID, &recipe.RecipeID, &recipe.Name, &recipe.AuthorComment,
 		&recipe.CookTime, &recipe.Calories, &recipe.TotalPrice, &recipe.CookingPoint,
-		&recipe.ImageData, &recipe.CreatedAt, &recipe.UpdatedAt,
+		&recipe.ImageURL, &recipe.CreatedAt, &recipe.UpdatedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -160,7 +160,7 @@ func (r *RecipeRepositoryImpl) SearchRecipesByIngredients(ctx context.Context, i
 		err := rows.Scan(
 			&recipe.ID, &recipe.RecipeID, &recipe.Name, &recipe.AuthorComment,
 			&recipe.CookTime, &recipe.Calories, &recipe.TotalPrice, &recipe.CookingPoint,
-			&recipe.ImageData, &recipe.CreatedAt, &recipe.UpdatedAt,
+			&recipe.ImageURL, &recipe.CreatedAt, &recipe.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan recipe: %w", err)

@@ -22,7 +22,7 @@ type RecipeDetail struct {
 	Calories      int       `json:"calories"`
 	TotalPrice    int       `json:"total_price"`
 	CookingPoint  string    `json:"cooking_point"`
-	ImageData     []byte    `json:"image_data,omitempty"`
+	ImageURL      string    `json:"image_url,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
