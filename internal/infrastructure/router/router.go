@@ -99,6 +99,7 @@ func NewRouter(userController *controller.UserController, healthController *cont
 			news.GET("/view-count/:news_id", newsViewController.GetNewsViewCount) // 単一ニュース閲覧数
 			news.POST("/view-counts", newsViewController.GetNewsViewCounts)       // 複数ニュース閲覧数
 			news.POST("/consult", newsConsultationController.ConsultNews)         // ニュース相談機能
+			news.POST("/send-email", newsConsultationController.SendNewsAnalysisEmail) // ニュース分析結果メール送信
 		}
 
 		// ツイート関連のエンドポイント

@@ -109,7 +109,7 @@ func main() {
 	flyerViewUsecase := usecase.NewFlyerViewUsecase(flyerViewRepo)
 	productUsecase := usecase.NewProductUsecase(productRepo, storeRepo, r2Service)
 	newsViewUsecase := usecase.NewNewsViewUsecase(newsViewRepo, storeRepo)
-	newsConsultationUsecase := usecase.NewNewsConsultationUsecase()
+	newsConsultationUsecase := usecase.NewNewsConsultationUsecase(emailService)
 	tweetUsecase := usecase.NewTweetUsecase(tweetRepo, tweetLikeRepo, storeRepo)
 	recipeUsecase := usecase.NewRecipeUsecase(recipeRepo, openAIService)
 

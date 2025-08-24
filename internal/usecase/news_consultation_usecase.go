@@ -14,10 +14,18 @@ import (
 	"google.golang.org/api/option"
 )
 
-type NewsConsultationUsecase struct{}
+type EmailService interface {
+	SendEmail(to, subject, body string) error
+}
 
-func NewNewsConsultationUsecase() *NewsConsultationUsecase {
-	return &NewsConsultationUsecase{}
+type NewsConsultationUsecase struct {
+	emailService EmailService
+}
+
+func NewNewsConsultationUsecase(emailService EmailService) *NewsConsultationUsecase {
+	return &NewsConsultationUsecase{
+		emailService: emailService,
+	}
 }
 
 // ConsultNews ニュース内容からスーパーの対応策をAIに分析させる
@@ -130,4 +138,91 @@ func (u *NewsConsultationUsecase) parseAIResponse(response string) (string, stri
 	analysisResult = strings.TrimSpace(analysisResult)
 	
 	return analysisResult, recommendations
+}
+
+// SendNewsAnalysisEmail ニュース分析結果をメール送信
+func (u *NewsConsultationUsecase) SendNewsAnalysisEmail(ctx context.Context, request *dto.NewsEmailRequest) error {
+	log.Printf("Sending news analysis email to: %s", request.Email)
+
+	// メール件名
+	subject := fmt.Sprintf("【Meguru】ニュース分析結果: %s", request.NewsTitle)
+
+	// メール本文をHTMLで作成
+	body := u.createEmailBody(request)
+
+	// メール送信
+	err := u.emailService.SendEmail(request.Email, subject, body)
+	if err != nil {
+		return fmt.Errorf("failed to send email: %w", err)
+	}
+
+	log.Printf("News analysis email sent successfully to: %s", request.Email)
+	return nil
+}
+
+// createEmailBody メール本文のHTMLを作成
+func (u *NewsConsultationUsecase) createEmailBody(request *dto.NewsEmailRequest) string {
+	return fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #563124; background-color: #F7F4F4; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background-color: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #563124, #F1B300); color: white; padding: 30px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; }
+        .content { padding: 30px; }
+        .news-info { background-color: #F7F4F4; padding: 20px; border-radius: 8px; margin-bottom: 25px; }
+        .section { margin-bottom: 25px; }
+        .section h2 { color: #563124; border-bottom: 2px solid #F1B300; padding-bottom: 10px; margin-bottom: 15px; }
+        .analysis { background-color: #f8f9fa; padding: 20px; border-left: 4px solid #563124; border-radius: 0 8px 8px 0; }
+        .recommendations { background-color: #fffdf5; padding: 20px; border-left: 4px solid #F1B300; border-radius: 0 8px 8px 0; }
+        .footer { background-color: #563124; color: white; padding: 20px; text-align: center; font-size: 14px; }
+        a { color: #F1B300; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🥗 Meguruニュース分析結果</h1>
+            <p>スーパーマーケット経営への提案</p>
+        </div>
+        
+        <div class="content">
+            <div class="news-info">
+                <h3 style="margin-top: 0; color: #563124;">📰 分析対象ニュース</h3>
+                <p><strong>タイトル:</strong> %s</p>
+                <p><strong>URL:</strong> <a href="%s" target="_blank">記事を読む</a></p>
+            </div>
+            
+            <div class="section">
+                <h2>📊 記事分析</h2>
+                <div class="analysis">
+                    %s
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>💡 推奨対応策</h2>
+                <div class="recommendations">
+                    %s
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>このメールはMeguruのAI相談機能により自動生成されました</p>
+            <p>© 2024 Meguru. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
+	`, 
+		request.NewsTitle,
+		request.NewsURL,
+		strings.ReplaceAll(request.AnalysisResult, "\n", "<br>"),
+		strings.ReplaceAll(request.Recommendations, "\n", "<br>"),
+	)
 }
