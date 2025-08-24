@@ -103,7 +103,7 @@ func (sc *StoreController) SignIn(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusOK, gin.H{"data": response})
 }
 
 // Authorization ヘッダーからトークンを取得するヘルパー関数
