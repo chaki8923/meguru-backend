@@ -13,7 +13,7 @@ type Recipe struct {
 	Calories      int
 	TotalPrice    int
 	CookingPoint  string
-	ImageData     []byte
+	ImageURL      string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	DeletedAt     *time.Time

@@ -302,7 +302,6 @@ func (u *UserUsecase) sendPasswordResetEmail(ctx context.Context, user *entity.U
 
 	return u.emailService.SendEmail(user.Email, subject, body)
 }
-<<<<<<< HEAD
 
 // GetUserProfile ユーザープロファイル取得
 func (u *UserUsecase) GetUserProfile(ctx context.Context, userID uuid.UUID) (*GetUserProfileResponse, error) {
@@ -353,6 +352,4 @@ func (u *UserUsecase) UpdateUserProfile(ctx context.Context, userID uuid.UUID, r
 	return &UpdateUserProfileResponse{
 		Message: "プロファイルが正常に更新されました",
 	}, nil
-} 
-=======
->>>>>>> origin/main
+}
