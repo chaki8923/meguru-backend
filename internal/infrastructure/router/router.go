@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, productController *controller.ProductController, newsViewController *controller.NewsViewController, tweetController *controller.TweetController, recipeController *controller.RecipeController, jwtService *usecase.JWTService) *gin.Engine {
+func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, flyerViewController *controller.FlyerViewController, productController *controller.ProductController, newsViewController *controller.NewsViewController, tweetController *controller.TweetController, recipeController *controller.RecipeController, jwtService *usecase.JWTService) *gin.Engine {
 	r := gin.Default()
 
 	// CORS設定
@@ -70,6 +70,16 @@ func NewRouter(userController *controller.UserController, healthController *cont
 			flyer.GET("/nearby", flyerController.GetNearbyFlyers) // 近隣店舗チラシ取得
 			flyer.GET("/:store_id", flyerController.GetFlyerByStoreID)
 			flyer.GET("/all/:store_id", flyerController.GetAllFlyersByStoreID)
+			
+			// フライヤービュー関連のエンドポイント
+			if flyerViewController != nil {
+				flyerViews := flyer.Group("/views")
+				{
+					flyerViews.POST("", flyerViewController.RecordFlyerView)                          // ビュー記録（認証不要 - ユーザー側）
+					flyerViews.GET("/count/:flyer_id", flyerViewController.GetFlyerViewCount)         // ビュー数取得（店舗側）
+					flyerViews.GET("/list/:flyer_id", flyerViewController.GetFlyerViewList)           // ビューリスト取得（店舗側）
+				}
+			}
 		}
 
 		// 商品関連のエンドポイント（認証必須）

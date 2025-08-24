@@ -61,6 +61,7 @@ func main() {
 	storeTokenRepo := infraDB.NewStoreEmailVerificationTokenRepository(db)
 	pushSubscriptionRepo := infraDB.NewPushSubscriptionRepository(db)
 	flyerRepo := infraDB.NewFlyerRepository(db)
+	flyerViewRepo := infraDB.NewFlyerViewRepository(db)
 	productRepo := infraDB.NewProductRepository(db)
 	newsViewRepo := infraDB.NewNewsViewRepository(db)
 	tweetRepo := infraDB.NewTweetRepository(db)
@@ -82,6 +83,9 @@ func main() {
 
 	// Initialize OpenAI service
 	openAIAPIKey := os.Getenv("OPENAI_API_KEY")
+	if openAIAPIKey == "" {
+		openAIAPIKey = "dummy-key" // 一時的なダミーキー
+	}
 	openAIService := service.NewOpenAIService(openAIAPIKey)
 
 	// メール認証機能の有効/無効を環境変数から取得（デフォルトは無効）
@@ -102,6 +106,7 @@ func main() {
 	storeUsecase := usecase.NewStoreUsecase(storeRepo, storeTokenRepo, emailService, enableEmailVerification)
 	pushSubscriptionUsecase := usecase.NewPushSubscriptionUsecase(pushSubscriptionRepo, webPushService)
 	flyerUsecase := usecase.NewFlyerUsecase(flyerRepo, storeRepo, productRepo)
+	flyerViewUsecase := usecase.NewFlyerViewUsecase(flyerViewRepo)
 	productUsecase := usecase.NewProductUsecase(productRepo, storeRepo, r2Service)
 	newsViewUsecase := usecase.NewNewsViewUsecase(newsViewRepo, storeRepo)
 	tweetUsecase := usecase.NewTweetUsecase(tweetRepo, tweetLikeRepo, storeRepo)
@@ -113,13 +118,14 @@ func main() {
 	storeController := controller.NewStoreController(storeUsecase)
 	pushSubscriptionController := controller.NewPushSubscriptionController(pushSubscriptionUsecase)
 	flyerController := controller.NewFlyerController(flyerUsecase)
+	flyerViewController := controller.NewFlyerViewController(flyerViewUsecase)
 	productController := controller.NewProductController(productUsecase)
 	newsViewController := controller.NewNewsViewController(newsViewUsecase)
 	tweetController := controller.NewTweetController(tweetUsecase)
 	recipeController := controller.NewRecipeController(recipeUsecase)
 
 	// Initialize router
-	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController, productController, newsViewController, tweetController, recipeController, jwtService)
+	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController, flyerViewController, productController, newsViewController, tweetController, recipeController, jwtService)
 
 	port := os.Getenv("PORT")
 	if port == "" {

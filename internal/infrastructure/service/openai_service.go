@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 )
 
@@ -47,8 +48,8 @@ type Error struct {
 }
 
 func NewOpenAIService(apiKey string) *OpenAIService {
-	if apiKey == "" {
-		panic("OPENAI_API_KEY environment variable is not set")
+	if apiKey == "" || apiKey == "dummy-key" {
+		log.Println("Warning: OPENAI_API_KEY not set, OpenAI features will be limited")
 	}
 
 	return &OpenAIService{
