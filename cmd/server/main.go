@@ -109,6 +109,7 @@ func main() {
 	flyerViewUsecase := usecase.NewFlyerViewUsecase(flyerViewRepo)
 	productUsecase := usecase.NewProductUsecase(productRepo, storeRepo, r2Service)
 	newsViewUsecase := usecase.NewNewsViewUsecase(newsViewRepo, storeRepo)
+	newsConsultationUsecase := usecase.NewNewsConsultationUsecase()
 	tweetUsecase := usecase.NewTweetUsecase(tweetRepo, tweetLikeRepo, storeRepo)
 	recipeUsecase := usecase.NewRecipeUsecase(recipeRepo, openAIService)
 
@@ -121,11 +122,12 @@ func main() {
 	flyerViewController := controller.NewFlyerViewController(flyerViewUsecase)
 	productController := controller.NewProductController(productUsecase)
 	newsViewController := controller.NewNewsViewController(newsViewUsecase)
+	newsConsultationController := controller.NewNewsConsultationController(newsConsultationUsecase)
 	tweetController := controller.NewTweetController(tweetUsecase)
 	recipeController := controller.NewRecipeController(recipeUsecase)
 
 	// Initialize router
-	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController, flyerViewController, productController, newsViewController, tweetController, recipeController, jwtService)
+	r := router.NewRouter(userController, healthController, storeController, pushSubscriptionController, flyerController, flyerViewController, productController, newsViewController, newsConsultationController, tweetController, recipeController, jwtService)
 
 	port := os.Getenv("PORT")
 	if port == "" {

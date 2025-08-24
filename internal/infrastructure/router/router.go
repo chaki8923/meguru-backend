@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, flyerViewController *controller.FlyerViewController, productController *controller.ProductController, newsViewController *controller.NewsViewController, tweetController *controller.TweetController, recipeController *controller.RecipeController, jwtService *usecase.JWTService) *gin.Engine {
+func NewRouter(userController *controller.UserController, healthController *controller.HealthController, storeController *controller.StoreController, pushSubscriptionController *controller.PushSubscriptionController, flyerController *controller.FlyerController, flyerViewController *controller.FlyerViewController, productController *controller.ProductController, newsViewController *controller.NewsViewController, newsConsultationController *controller.NewsConsultationController, tweetController *controller.TweetController, recipeController *controller.RecipeController, jwtService *usecase.JWTService) *gin.Engine {
 	r := gin.Default()
 
 	// CORS設定
@@ -98,6 +98,7 @@ func NewRouter(userController *controller.UserController, healthController *cont
 			news.POST("/view", newsViewController.RecordNewsView)                 // ニュース閲覧記録
 			news.GET("/view-count/:news_id", newsViewController.GetNewsViewCount) // 単一ニュース閲覧数
 			news.POST("/view-counts", newsViewController.GetNewsViewCounts)       // 複数ニュース閲覧数
+			news.POST("/consult", newsConsultationController.ConsultNews)         // ニュース相談機能
 		}
 
 		// ツイート関連のエンドポイント
