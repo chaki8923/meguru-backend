@@ -170,7 +170,8 @@ func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecip
 	}
 
 	return &dto.GetRecipesByImageResponse{
-		Recipes: searchResults,
+		ExtractedIngredients: ingredientNames,
+		Recipes:              searchResults,
 	}, nil
 }
 
@@ -277,7 +278,8 @@ func (u *RecipeUsecase) GetSavedRecipes(ctx context.Context, userID string) (*dt
 	}
 
 	return &dto.GetRecipesByImageResponse{
-		Recipes: recipeResults,
+		ExtractedIngredients: []string{}, // 保存レシピには抽出された食材はないため空配列
+		Recipes:              recipeResults,
 	}, nil
 }
 
