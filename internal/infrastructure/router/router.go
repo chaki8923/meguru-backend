@@ -101,14 +101,15 @@ func NewRouter(userController *controller.UserController, healthController *cont
 			tweets.DELETE("/:id/like", tweetController.UnlikeTweet)
 		}
 
-		// レシピ関連のエンドポイント
+		// レシピ関連のエンドポイント（認証付き）
 		recipes := api.Group("/recipes")
+		recipes.Use(UserAuthMiddleware(jwtService))
 		{
 			recipes.GET("/:recipe_id", recipeController.GetRecipeDetail)
 		}
 
-		// 画像からレシピ取得エンドポイント
-		api.POST("/recipes-from-image", recipeController.GetRecipesByImage)
+		// 画像からレシピ取得エンドポイント（認証付き）
+		recipes.POST("/from-image", recipeController.GetRecipesByImage)
 
 		// 保存レシピ関連のエンドポイント（認証必須）
 		savedRecipes := api.Group("/saved-recipes")

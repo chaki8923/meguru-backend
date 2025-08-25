@@ -13,4 +13,5 @@ type RecipeResult struct {
 	ImageURL    string   `json:"image_url,omitempty"`
 	Ingredients []string `json:"ingredients"`
 	Seasonings  []string `json:"seasonings"`
+	SavedFlg    bool     `json:"saved_flg"`
 }

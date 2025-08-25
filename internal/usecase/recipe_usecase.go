@@ -108,10 +108,105 @@ func (u *RecipeUsecase) GetRecipeDetail(ctx context.Context, recipeID string) (*
 		Ingredients: ingredientDTOs,
 		Seasonings:  seasoningDTOs,
 		Steps:       stepDTOs,
+		SavedFlg:    false, // 認証なしの場合はデフォルトでfalse
 	}, nil
 }
 
-func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecipesByImageRequest) (*dto.GetRecipesByImageResponse, error) {
+func (u *RecipeUsecase) GetRecipeDetailWithAuth(ctx context.Context, recipeID, userID string) (*dto.GetRecipeDetailResponse, error) {
+	// レシピ基本情報を取得
+	recipe, err := u.recipeRepo.GetRecipeByID(ctx, recipeID)
+	if err != nil {
+		return nil, err
+	}
+	if recipe == nil {
+		return nil, nil
+	}
+
+	// 材料情報を取得
+	ingredients, err := u.recipeRepo.GetRecipeIngredients(ctx, recipeID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 調味料情報を取得
+	seasonings, err := u.recipeRepo.GetRecipeSeasonings(ctx, recipeID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 調理手順を取得
+	steps, err := u.recipeRepo.GetRecipeSteps(ctx, recipeID)
+	if err != nil {
+		return nil, err
+	}
+
+	// レシピ詳細DTOを作成
+	recipeDetail := &dto.RecipeDetail{
+		ID:            recipe.ID,
+		RecipeID:      recipe.RecipeID,
+		Name:          recipe.Name,
+		AuthorComment: recipe.AuthorComment,
+		CookTime:      recipe.CookTime,
+		Calories:      recipe.Calories,
+		TotalPrice:    recipe.TotalPrice,
+		CookingPoint:  recipe.CookingPoint,
+		ImageURL:      recipe.ImageURL,
+		CreatedAt:     recipe.CreatedAt,
+		UpdatedAt:     recipe.UpdatedAt,
+	}
+
+	// 材料DTOを作成
+	var ingredientDTOs []*dto.RecipeIngredient
+	for _, ingredient := range ingredients {
+		ingredientDTO := &dto.RecipeIngredient{
+			ID:           ingredient.ID,
+			Name:         ingredient.Name,
+			DisplayOrder: ingredient.DisplayOrder,
+			AmountText:   ingredient.AmountText,
+		}
+		ingredientDTOs = append(ingredientDTOs, ingredientDTO)
+	}
+
+	// 調味料DTOを作成
+	var seasoningDTOs []*dto.RecipeSeasoning
+	for _, seasoning := range seasonings {
+		seasoningDTO := &dto.RecipeSeasoning{
+			ID:           seasoning.ID,
+			Name:         seasoning.Name,
+			DisplayOrder: seasoning.DisplayOrder,
+			AmountText:   seasoning.AmountText,
+		}
+		seasoningDTOs = append(seasoningDTOs, seasoningDTO)
+	}
+
+	// 調理手順DTOを作成
+	var stepDTOs []*dto.RecipeStep
+	for _, step := range steps {
+		stepDTO := &dto.RecipeStep{
+			ID:          step.ID,
+			Instruction: step.Instruction,
+			StepNumber:  step.StepNumber,
+		}
+		stepDTOs = append(stepDTOs, stepDTO)
+	}
+
+	// レシピが保存済みかどうかをチェック
+	savedRecipe, err := u.recipeRepo.GetSavedRecipeByUserAndRecipe(ctx, userID, recipeID)
+	if err != nil {
+		return nil, err
+	}
+	savedFlg := savedRecipe != nil
+
+	return &dto.GetRecipeDetailResponse{
+		Recipe:      recipeDetail,
+		Ingredients: ingredientDTOs,
+		Seasonings:  seasoningDTOs,
+		Steps:       stepDTOs,
+		SavedFlg:    savedFlg,
+	}, nil
+}
+
+func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecipesByImageRequest, userID string) (*dto.GetRecipesByImageResponse, error) {
 	// 1. 画像から食材を取得
 	analysisResult, err := u.openAIService.GetIngredientsFromImage(req.ImageBase64)
 	if err != nil {
@@ -157,6 +252,13 @@ func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecip
 			seasoningNames = append(seasoningNames, seasoning.Name)
 		}
 
+		// レシピが保存済みかどうかをチェック
+		savedRecipe, err := u.recipeRepo.GetSavedRecipeByUserAndRecipe(ctx, userID, recipe.RecipeID)
+		if err != nil {
+			return nil, err
+		}
+		savedFlg := savedRecipe != nil
+
 		searchResult := &dto.RecipeResult{
 			RecipeID:    recipe.RecipeID,
 			Name:        recipe.Name,
@@ -165,6 +267,7 @@ func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecip
 			ImageURL:    recipe.ImageURL,
 			Ingredients: ingredientNames,
 			Seasonings:  seasoningNames,
+			SavedFlg:    savedFlg,
 		}
 		searchResults = append(searchResults, searchResult)
 	}
@@ -219,7 +322,7 @@ func (u *RecipeUsecase) SaveRecipe(ctx context.Context, req *dto.SaveRecipeReque
 	}, nil
 }
 
-func (u *RecipeUsecase) GetSavedRecipes(ctx context.Context, userID string) (*dto.GetRecipesByImageResponse, error) {
+func (u *RecipeUsecase) GetSavedRecipes(ctx context.Context, userID string) (*dto.GetSavedRecipesResponse, error) {
 	// 1. ユーザーが保存したレシピ一覧を取得
 	savedRecipes, err := u.recipeRepo.GetSavedRecipesByUser(ctx, userID)
 	if err != nil {
@@ -272,14 +375,14 @@ func (u *RecipeUsecase) GetSavedRecipes(ctx context.Context, userID string) (*dt
 			ImageURL:    recipe.ImageURL,
 			Ingredients: ingredientNames,
 			Seasonings:  seasoningNames,
+			SavedFlg:    true, // 保存済みレシピなのでtrue
 		}
 
 		recipeResults = append(recipeResults, recipeResult)
 	}
 
-	return &dto.GetRecipesByImageResponse{
-		ExtractedIngredients: []string{}, // 保存レシピには抽出された食材はないため空配列
-		Recipes:              recipeResults,
+	return &dto.GetSavedRecipesResponse{
+		Recipes: recipeResults,
 	}, nil
 }
 
