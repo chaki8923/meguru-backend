@@ -65,7 +65,7 @@ func (u *NewsConsultationUsecase) analyzeNewsWithAI(ctx context.Context, title, 
 	}
 	defer client.Close()
 
-	model := client.GenerativeModel("gemini-1.5-pro")
+	model := client.GenerativeModel("gemini-2.5-flash")
 
 	prompt := fmt.Sprintf(`
 あなたはスーパーマーケット経営のコンサルタントです。以下のニュース記事のURLにアクセスして内容を読み取り、スーパーマーケットがどのような対応を取るべきかを提案してください。
