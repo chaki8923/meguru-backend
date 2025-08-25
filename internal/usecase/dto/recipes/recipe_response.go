@@ -9,6 +9,7 @@ type GetRecipeDetailResponse struct {
 	Ingredients []*RecipeIngredient `json:"ingredients"`
 	Seasonings  []*RecipeSeasoning  `json:"seasonings"`
 	Steps       []*RecipeStep       `json:"steps"`
+	SavedFlg    bool                `json:"saved_flg"`
 }
 
 type RecipeDetail struct {

@@ -22,7 +22,20 @@ func NewRecipeController(recipeUsecase *usecase.RecipeUsecase) *RecipeController
 func (c *RecipeController) GetRecipeDetail(ctx *gin.Context) {
 	recipeID := ctx.Param("recipe_id")
 
-	recipeDetail, err := c.recipeUsecase.GetRecipeDetail(ctx.Request.Context(), recipeID)
+	// 認証情報があるかチェック
+	userID, exists := ctx.Get("user_id")
+
+	var recipeDetail *dto.GetRecipeDetailResponse
+	var err error
+
+	if exists {
+		// 認証がある場合は保存状態もチェック
+		recipeDetail, err = c.recipeUsecase.GetRecipeDetailWithAuth(ctx.Request.Context(), recipeID, userID.(string))
+	} else {
+		// 認証がない場合は通常の取得
+		recipeDetail, err = c.recipeUsecase.GetRecipeDetail(ctx.Request.Context(), recipeID)
+	}
+
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -37,6 +50,13 @@ func (c *RecipeController) GetRecipeDetail(ctx *gin.Context) {
 }
 
 func (c *RecipeController) GetRecipesByImage(ctx *gin.Context) {
+	// JWTトークンからユーザーIDを取得
+	userID, exists := ctx.Get("user_id")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
 	var req dto.GetRecipesByImageRequest
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -44,7 +64,7 @@ func (c *RecipeController) GetRecipesByImage(ctx *gin.Context) {
 		return
 	}
 
-	result, err := c.recipeUsecase.GetRecipesByImage(ctx.Request.Context(), &req)
+	result, err := c.recipeUsecase.GetRecipesByImage(ctx.Request.Context(), &req, userID.(string))
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
