@@ -109,7 +109,11 @@ func NewRouter(userController *controller.UserController, healthController *cont
 		}
 
 		// 画像からレシピ取得エンドポイント（認証付き）
-		recipes.POST("/from-image", recipeController.GetRecipesByImage)
+		recipesFromImage := api.Group("/recipes-from-image")
+		recipesFromImage.Use(UserAuthMiddleware(jwtService))
+		{
+			recipesFromImage.POST("", recipeController.GetRecipesByImage)
+		}
 
 		// 保存レシピ関連のエンドポイント（認証必須）
 		savedRecipes := api.Group("/saved-recipes")
