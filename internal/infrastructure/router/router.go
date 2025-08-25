@@ -116,7 +116,7 @@ func NewRouter(userController *controller.UserController, healthController *cont
 		{
 			savedRecipes.POST("", recipeController.SaveRecipe)
 			savedRecipes.GET("", recipeController.GetSavedRecipes)
-			savedRecipes.DELETE("", recipeController.DeleteSavedRecipe)
+			savedRecipes.DELETE("/:recipe_id", recipeController.DeleteSavedRecipe)
 		}
 	}
 

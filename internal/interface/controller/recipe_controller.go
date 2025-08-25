@@ -101,13 +101,19 @@ func (c *RecipeController) DeleteSavedRecipe(ctx *gin.Context) {
 		return
 	}
 
-	var req dto.DeleteSavedRecipeRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// パスパラメータからrecipe_idを取得
+	recipeID := ctx.Param("recipe_id")
+	if recipeID == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "recipe_id is required"})
 		return
 	}
 
-	result, err := c.recipeUsecase.DeleteSavedRecipe(ctx.Request.Context(), &req, userID.(string))
+	// リクエストDTOを作成
+	req := &dto.DeleteSavedRecipeRequest{
+		RecipeID: recipeID,
+	}
+
+	result, err := c.recipeUsecase.DeleteSavedRecipe(ctx.Request.Context(), req, userID.(string))
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
