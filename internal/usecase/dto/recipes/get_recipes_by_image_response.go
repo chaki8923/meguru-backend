@@ -1,7 +1,8 @@
 package dto
 
 type GetRecipesByImageResponse struct {
-	Recipes []*RecipeResult `json:"recipes"`
+	ExtractedIngredients []string        `json:"extracted_ingredients"`
+	Recipes              []*RecipeResult `json:"recipes"`
 }
 
 type RecipeResult struct {
