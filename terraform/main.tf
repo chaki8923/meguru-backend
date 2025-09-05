@@ -423,7 +423,7 @@ resource "aws_apprunner_service" "main" {
       }
     }
 
-    auto_deployments_enabled = false
+    auto_deployments_enabled = true
 
     dynamic "authentication_configuration" {
       for_each = var.image_repository_type == "ECR" ? [1] : []
