@@ -39,7 +39,7 @@ func NewRouter(userController *controller.UserController, healthController *cont
 			users.POST("/login", userController.LoginUser)
 			users.POST("/forgot-password", userController.ForgotPassword)
 			users.POST("/reset-password", userController.ResetPassword)
-			
+
 			// 認証が必要なエンドポイント
 			protected := users.Group("")
 			protected.Use(UserAuthMiddleware(jwtService))
@@ -113,14 +113,19 @@ func NewRouter(userController *controller.UserController, healthController *cont
 			tweets.DELETE("/:id/like", tweetController.UnlikeTweet)
 		}
 
-		// レシピ関連のエンドポイント
+		// レシピ関連のエンドポイント（認証付き）
 		recipes := api.Group("/recipes")
+		recipes.Use(UserAuthMiddleware(jwtService))
 		{
 			recipes.GET("/:recipe_id", recipeController.GetRecipeDetail)
 		}
 
-		// 画像からレシピ取得エンドポイント
-		api.POST("/recipes-from-image", recipeController.GetRecipesByImage)
+		// 画像からレシピ取得エンドポイント（認証付き）
+		recipesFromImage := api.Group("/recipes-from-image")
+		recipesFromImage.Use(UserAuthMiddleware(jwtService))
+		{
+			recipesFromImage.POST("", recipeController.GetRecipesByImage)
+		}
 
 		// 保存レシピ関連のエンドポイント（認証必須）
 		savedRecipes := api.Group("/saved-recipes")
@@ -128,6 +133,7 @@ func NewRouter(userController *controller.UserController, healthController *cont
 		{
 			savedRecipes.POST("", recipeController.SaveRecipe)
 			savedRecipes.GET("", recipeController.GetSavedRecipes)
+			savedRecipes.DELETE("/:recipe_id", recipeController.DeleteSavedRecipe)
 		}
 	}
 

@@ -10,7 +10,7 @@ CREATE TABLE recipes (
     calories INTEGER,
     total_price INTEGER, -- 円単位
     cooking_point TEXT,
-    image_data BYTEA, -- レシピ画像（オプション）
+    image_url TEXT, -- レシピ画像URL（オプション）
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE
@@ -96,7 +96,7 @@ COMMENT ON COLUMN recipes.cook_time IS '調理時間（分）';
 COMMENT ON COLUMN recipes.calories IS 'カロリー';
 COMMENT ON COLUMN recipes.total_price IS 'レシピ合計金額（円）';
 COMMENT ON COLUMN recipes.cooking_point IS '作る時のポイント';
-COMMENT ON COLUMN recipes.image_data IS 'レシピ画像データ（オプション）';
+COMMENT ON COLUMN recipes.image_url IS 'レシピ画像URL（オプション）';
 COMMENT ON COLUMN recipes.deleted_at IS '論理削除日時（NULLの場合は削除されていない）';
 
 COMMENT ON TABLE recipe_ingredients IS 'レシピ材料テーブル';

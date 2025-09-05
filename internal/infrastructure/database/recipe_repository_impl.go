@@ -20,7 +20,7 @@ func NewRecipeRepository(db *sql.DB) repository.RecipeRepository {
 
 func (r *RecipeRepositoryImpl) GetRecipeByID(ctx context.Context, recipeID string) (*entity.Recipe, error) {
 	query := `
-		SELECT id, recipe_id, name, author_comment, cook_time, calories, total_price, cooking_point, image_data, created_at, updated_at
+		SELECT id, recipe_id, name, author_comment, cook_time, calories, total_price, cooking_point, image_url, created_at, updated_at
 		FROM recipes
 		WHERE recipe_id = $1 AND deleted_at IS NULL
 	`
@@ -29,7 +29,7 @@ func (r *RecipeRepositoryImpl) GetRecipeByID(ctx context.Context, recipeID strin
 	err := r.db.QueryRowContext(ctx, query, recipeID).Scan(
 		&recipe.ID, &recipe.RecipeID, &recipe.Name, &recipe.AuthorComment,
 		&recipe.CookTime, &recipe.Calories, &recipe.TotalPrice, &recipe.CookingPoint,
-		&recipe.ImageData, &recipe.CreatedAt, &recipe.UpdatedAt,
+		&recipe.ImageURL, &recipe.CreatedAt, &recipe.UpdatedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -141,7 +141,7 @@ func (r *RecipeRepositoryImpl) SearchRecipesByIngredients(ctx context.Context, i
 	}
 
 	query := `
-		SELECT DISTINCT r.id, r.recipe_id, r.name, r.author_comment, r.cook_time, r.calories, r.total_price, r.cooking_point, r.image_data, r.created_at, r.updated_at
+		SELECT DISTINCT r.id, r.recipe_id, r.name, r.author_comment, r.cook_time, r.calories, r.total_price, r.cooking_point, r.image_url, r.created_at, r.updated_at
 		FROM recipes r
 		INNER JOIN recipe_ingredients ri ON r.recipe_id = ri.recipe_id
 		WHERE ri.name = ANY($1) AND r.deleted_at IS NULL AND ri.deleted_at IS NULL
@@ -160,7 +160,7 @@ func (r *RecipeRepositoryImpl) SearchRecipesByIngredients(ctx context.Context, i
 		err := rows.Scan(
 			&recipe.ID, &recipe.RecipeID, &recipe.Name, &recipe.AuthorComment,
 			&recipe.CookTime, &recipe.Calories, &recipe.TotalPrice, &recipe.CookingPoint,
-			&recipe.ImageData, &recipe.CreatedAt, &recipe.UpdatedAt,
+			&recipe.ImageURL, &recipe.CreatedAt, &recipe.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan recipe: %w", err)
@@ -254,4 +254,56 @@ func (r *RecipeRepositoryImpl) GetSavedRecipesByUser(ctx context.Context, userID
 	}
 
 	return savedRecipes, nil
+}
+
+func (r *RecipeRepositoryImpl) GetSavedRecipeByID(ctx context.Context, savedRecipeID string) (*entity.SavedRecipe, error) {
+	query := `
+		SELECT id, saved_recipe_id, recipe_id, user_id, saved_at, created_at, updated_at
+		FROM saved_recipes
+		WHERE saved_recipe_id = $1 AND deleted_at IS NULL
+	`
+
+	savedRecipe := &entity.SavedRecipe{}
+	err := r.db.QueryRowContext(ctx, query, savedRecipeID).Scan(
+		&savedRecipe.ID,
+		&savedRecipe.SavedRecipeID,
+		&savedRecipe.RecipeID,
+		&savedRecipe.UserID,
+		&savedRecipe.SavedAt,
+		&savedRecipe.CreatedAt,
+		&savedRecipe.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get saved recipe by ID: %w", err)
+	}
+
+	return savedRecipe, nil
+}
+
+func (r *RecipeRepositoryImpl) DeleteSavedRecipe(ctx context.Context, userID, recipeID string) error {
+	query := `
+		UPDATE saved_recipes
+		SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+		WHERE user_id = $1 AND recipe_id = $2 AND deleted_at IS NULL
+	`
+
+	result, err := r.db.ExecContext(ctx, query, userID, recipeID)
+	if err != nil {
+		return fmt.Errorf("failed to delete saved recipe: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("saved recipe not found or already deleted")
+	}
+
+	return nil
 }
