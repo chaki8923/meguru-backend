@@ -1,135 +1,66 @@
-# Meguru Backend - Terraform デプロイメント
+# Terraform Configuration for Meguru Backend
 
-このディレクトリには、Go（Gin）アプリケーション + Aurora Serverless PostgreSQL + App RunnerのインフラをデプロイするためのTerraformファイルが含まれています。
+このディレクトリには、MeguruバックエンドをAWS App Runnerにデプロイするためのterraform設定が含まれています。
 
-## 前提条件
+## 🚀 簡単デプロイ手順
 
-1. **Terraform** がインストールされていること（バージョン 1.0 以上）
-2. **AWS CLI** が設定されていること
-3. 適切なAWS権限があること
-4. **Docker イメージ** が既にECR Public またはプライベートECRにプッシュされていること
-
-## デプロイ手順
-
-### 1. 設定ファイルの準備
-
+### 1. 環境変数ファイルの自動生成
 ```bash
-cd terraform
-cp terraform.tfvars.example terraform.tfvars
+cd /path/to/meguru-backend/terraform
+./generate-tfvars.sh
 ```
 
-`terraform.tfvars` ファイルを編集して、適切な値を設定してください：
+このスクリプトが以下を実行します：
+- `../.env`ファイルから設定を読み取り
+- `terraform.tfvars`ファイルを自動生成
+- 必要な環境変数をすべて設定
 
-```hcl
-# 必須項目
-image_identifier = "014372010501.dkr.ecr.ap-northeast-1.amazonaws.com/meguru/backend:latest"
-database_password = "your-secure-password"
-
-# オプション項目（必要に応じて変更）
-project_name = "meguru-backend"
-aws_region = "ap-northeast-1"
-```
-
-### 2. Terraformの初期化
-
+### 2. Terraformデプロイ
 ```bash
 terraform init
-```
-
-### 3. プランの確認
-
-```bash
 terraform plan
-```
-
-### 4. デプロイの実行
-
-```bash
 terraform apply
 ```
 
-実行時に `yes` を入力してデプロイを確認してください。
+## 🔧 手動設定（従来の方法）
 
-### 5. 出力値の確認
+自動生成を使わない場合：
 
-デプロイが完了すると、以下の情報が出力されます：
-
-```
-app_runner_service_url = "https://xxxxxxxxxx.ap-northeast-1.awsapprunner.com"
-aurora_cluster_endpoint = "meguru-backend-aurora-cluster.cluster-xxxxxxxxxx.ap-northeast-1.rds.amazonaws.com"
-```
-
-## 重要な改善点
-
-CloudFormationから移行する際の主な改善点：
-
-1. **ヘルスチェック設定の最適化**
-   - Interval: 10秒（CloudFormationでは20秒でも失敗していた）
-   - Timeout: 5秒（より短く設定）
-   
-2. **セキュリティグループの詳細制御**
-   - より具体的なポート制御
-   - セキュリティグループ間の参照
-
-3. **リソースの依存関係管理**
-   - `depends_on` での明示的な依存関係
-   - より確実なデプロイ順序
-
-## ヘルスチェックエンドポイントの実装
-
-Goアプリケーションで `/health` エンドポイントを実装してください：
-
-```go
-func main() {
-    r := gin.Default()
-    
-    // ヘルスチェックエンドポイント
-    r.GET("/health", func(c *gin.Context) {
-        c.JSON(200, gin.H{
-            "status": "ok",
-            "timestamp": time.Now().Unix(),
-        })
-    })
-    
-    // その他のルートの設定...
-    
-    r.Run(":" + os.Getenv("PORT"))
-}
-```
-
-## リソースの削除
-
+1. `terraform.tfvars.example`をコピー
 ```bash
-terraform destroy -auto-approve
+cp terraform.tfvars.example terraform.tfvars
 ```
 
-実行時に `yes` を入力してリソースを削除してください。
+2. `terraform.tfvars`を編集して実際の値を設定
 
-## トラブルシューティング
+## 📋 主要リソース
 
-### ヘルスチェックが失敗する場合
+- **App Runner Service**: アプリケーション実行環境
+- **Aurora PostgreSQL Serverless v2**: データベース
+- **VPC + Private Subnets**: ネットワーク（追加コストなし）
+- **Security Groups**: セキュリティ設定
+- **ECR Access IAM Role**: コンテナレジストリアクセス
 
-1. `/health` エンドポイントが実装されているか確認
-2. アプリケーションが正しいポートで起動しているか確認
-3. データベース接続が正常に動作しているか確認
+## ⚠️ 重要事項
 
-### データベース接続エラー
+- **コスト最適化**: NAT Gatewayは使用していません（コスト削減）
+- **セキュリティ**: terraform.tfvarsはGitignoreされています
+- **環境変数**: .envファイルから自動的に変換されます
 
-1. セキュリティグループの設定を確認
-2. データベースの認証情報が正しいか確認
-3. VPC設定が適切か確認
+## 🛠️ トラブルシューティング
 
-## ファイル構成
+### Container exit code: 255
+アプリケーションの起動に失敗している場合：
+1. 環境変数が正しく設定されているか確認
+2. App Runnerのログを確認
+3. ECRイメージが正しくビルドされているか確認
 
-```
-terraform/
-├── main.tf                    # メインのTerraform設定
-├── terraform.tfvars.example  # 変数の例
-├── terraform.tfvars          # 実際の変数値（gitignoreに追加）
-└── README.md                  # このファイル
-```
+### VPC Connector警告
+「Public subnet ids detected」警告は解決済みです（Private subnet使用）。
 
-## セキュリティ注意事項
+## 📁 ファイル構成
 
-- `terraform.tfvars` ファイルにはパスワードなどの機密情報が含まれるため、バージョン管理に含めないでください
-- プロダクション環境では、AWS Secrets Manager または Terraform Cloud の変数機能を使用することを推奨します 
+- `main.tf`: メインの設定ファイル
+- `terraform.tfvars.example`: 設定例
+- `generate-tfvars.sh`: 自動生成スクリプト
+- `.gitignore`: 機密ファイルの除外設定

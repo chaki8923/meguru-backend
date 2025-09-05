@@ -108,6 +108,33 @@ variable "max_aurora_capacity" {
   default     = 1
 }
 
+variable "r2_endpoint" {
+  description = "R2 endpoint URL"
+  type        = string
+}
+
+variable "r2_access_key" {
+  description = "R2 access key"
+  type        = string
+  sensitive   = true
+}
+
+variable "r2_secret_key" {
+  description = "R2 secret key"
+  type        = string
+  sensitive   = true
+}
+
+variable "r2_bucket_url" {
+  description = "R2 bucket URL"
+  type        = string
+}
+
+variable "r2_public_bucket_domain" {
+  description = "R2 public bucket domain"
+  type        = string
+}
+
 # Data sources
 data "aws_availability_zones" "available" {
   state = "available"
@@ -304,7 +331,7 @@ resource "aws_rds_cluster_instance" "main" {
 # App Runner VPC Connector
 resource "aws_apprunner_vpc_connector" "main" {
   vpc_connector_name = "${var.project_name}-vpc-connector"
-  subnets           = [aws_subnet.public_1.id, aws_subnet.public_2.id]
+  subnets           = [aws_subnet.database_1.id, aws_subnet.database_2.id]
   security_groups   = [aws_security_group.app_runner.id]
 
   tags = {
@@ -379,13 +406,19 @@ resource "aws_apprunner_service" "main" {
       image_configuration {
         port = var.app_runner_port
         runtime_environment_variables = {
-          PORT        = tostring(var.app_runner_port)
-          DB_HOST     = aws_rds_cluster.main.endpoint
-          DB_PORT     = tostring(aws_rds_cluster.main.port)
-          DB_USER     = var.database_username
-          DB_PASSWORD = var.database_password
-          DB_NAME     = var.database_name
-          GIN_MODE    = "release"
+          PORT                    = tostring(var.app_runner_port)
+          DB_HOST                 = aws_rds_cluster.main.endpoint
+          DB_PORT                 = tostring(aws_rds_cluster.main.port)
+          DB_USER                 = var.database_username
+          DB_PASSWORD             = var.database_password
+          DB_NAME                 = var.database_name
+          DATABASE_URL            = "postgres://${var.database_username}:${var.database_password}@${aws_rds_cluster.main.endpoint}:${aws_rds_cluster.main.port}/${var.database_name}?sslmode=disable"
+          R2_ENDPOINT             = var.r2_endpoint
+          R2_ACCESS_KEY           = var.r2_access_key
+          R2_SECRET_KEY           = var.r2_secret_key
+          R2_BUCKET_URL           = var.r2_bucket_url
+          R2_PUBLIC_BUCKET_DOMAIN = var.r2_public_bucket_domain
+          GIN_MODE                = "release"
         }
       }
     }

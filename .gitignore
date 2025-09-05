@@ -10,6 +10,8 @@ tmp/air_errors.log
 # Environment files
 .env
 
+/terraform/generate-tfvars.sh
+
 # Temporary files
 tmp/
 

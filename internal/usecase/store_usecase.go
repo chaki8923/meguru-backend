@@ -200,95 +200,27 @@ func (u *StoreUsecase) RegisterShop(ctx context.Context, req *ShopRegisterReques
 	}
 
 	// 最小限の情報で店舗エンティティを作成
+	// メール認証をスキップして直接認証済み状態にする
+	now := time.Now()
 	store := &entity.Store{
 		ID:		 uuid.New(),
 		Email:		 req.Email,
 		PasswordHash:	 string(hashedPassword),
-		CreatedAt:	 time.Now(),
-		UpdatedAt:	 time.Now(),
+		EmailVerifiedAt: &now, // 即座に認証済み状態にする
+		CreatedAt:	 now,
+		UpdatedAt:	 now,
 	}
 
 	if err := u.storeRepo.Create(ctx, store); err != nil {
 		return nil, err
 	}
 
-	// メール認証機能が有効な場合、認証トークンを生成・送信
-	if u.enableEmailVerification && u.emailService != nil {
-		if err := u.sendVerificationEmail(ctx, store, req.Email); err != nil {
-			// メール送信失敗してもログに記録するのみ、APIエラーは返さない
-			println("メール認証送信に失敗しました:", err.Error())
-		}
-	} else if u.emailService != nil {
-		// 従来のメール送信（認証機能無効時）
-		subject := "【meguru】店舗登録が完了しました"
-		body := `
-<html>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-	<div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-		<div style="background: linear-gradient(135deg, #ff7849, #ff6b35); padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 30px;">
-			<h1 style="color: white; margin: 0; font-size: 24px;">meguruへようこそ！</h1>
-			<p style="color: #fff3f0; margin: 10px 0 0 0;">店舗登録が完了しました</p>
-		</div>
-		
-		<div style="background: #f8f9fa; padding: 25px; border-radius: 10px; margin-bottom: 25px;">
-			<h2 style="color: #ff6b35; margin-top: 0;">次のステップ</h2>
-			<ol style="padding-left: 20px;">
-				<li style="margin-bottom: 10px;">下記のリンクをクリックしてサービスにアクセス</li>
-				<li style="margin-bottom: 10px;">ログインして店舗情報を詳細設定</li>
-				<li style="margin-bottom: 10px;">チラシ作成や商品登録を開始</li>
-			</ol>
-		</div>
-		
-		<div style="text-align: center; margin: 30px 0;">
-			<a href="http://localhost:3000/verify-email" 
-			   style="background: linear-gradient(135deg, #ff7849, #ff6b35); 
-			          color: white; 
-			          padding: 15px 30px; 
-			          text-decoration: none; 
-			          border-radius: 25px; 
-			          font-weight: bold; 
-			          display: inline-block;
-			          box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);">
-				サービスにアクセス
-			</a>
-		</div>
-		
-		<div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 8px; margin-top: 30px;">
-			<p style="margin: 0; font-size: 14px; color: #856404;">
-				<strong>ログイン情報：</strong><br>
-				メールアドレス: ` + req.Email + `<br>
-				パスワード: （新規登録時に設定したパスワード）
-			</p>
-		</div>
-		
-		<div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #666; font-size: 12px;">
-			<p>このメールに心当たりがない場合は、このメールを無視してください。</p>
-			<p style="margin-top: 15px;">© 2025 meguru. All rights reserved.</p>
-		</div>
-	</div>
-</body>
-</html>`
-		if err := u.emailService.SendEmail(req.Email, subject, body); err != nil {
-			// メール送信に失敗してもログに記録するのみ、APIエラーは返さない
-			// TODO: 本来はloggerを使用してログ出力を行う
-			println("メール送信に失敗しました:", err.Error())
-		}
-	}
-
-	// 簡易的なトークン生成（実際の実装では JWT などを使用）
-	token := "temp_token_" + store.ID.String()
-
-	// レスポンスメッセージを動的に設定
-	var message string
-	if u.enableEmailVerification {
-		message = "店舗登録が完了しました。メールアドレスの認証が必要です。送信されたメール内のリンクをクリックして認証を完了してください。"
-	} else {
-		message = "店舗登録が完了しました。確認メールをお送りしましたので、メール内のリンクからサービスにアクセスしてください。"
-	}
+	// 有効な認証トークンを生成（メール認証不要）
+	token := "auth_token_" + store.ID.String()
 
 	response := &ShopRegisterResponse{
 		Success: true,
-		Message: message,
+		Message: "店舗登録が完了しました。ログインしてサービスをご利用ください。",
 	}
 	response.Data.Token = token
 

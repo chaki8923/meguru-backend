@@ -22,6 +22,26 @@ import (
 	"github.com/google/uuid"
 )
 
+// カスタムエラータイプ
+type FlyerValidationError struct {
+	Type    string  `json:"type"`
+	Message string  `json:"message"`
+	Confidence float64 `json:"confidence,omitempty"`
+}
+
+func (e *FlyerValidationError) Error() string {
+	return e.Message
+}
+
+// NewFlyerValidationError creates a new flyer validation error
+func NewFlyerValidationError(message string, confidence float64) *FlyerValidationError {
+	return &FlyerValidationError{
+		Type:       "INVALID_FLYER_IMAGE",
+		Message:    message,
+		Confidence: confidence,
+	}
+}
+
 // Response structure to be sent to the controller
 type FlyerResponse struct {
 	ID                string         `json:"id"`
@@ -59,7 +79,15 @@ func (u *FlyerUsecase) AnalyzeAndSaveFlyer(ctx context.Context, fileHeader *mult
 		return nil, fmt.Errorf("failed to read image data: %w", err)
 	}
 
-	// 2. Call Gemini API
+	// 2. チラシかどうかの事前検証
+	log.Println("チラシ画像の検証を開始します...")
+	if err := u.validateFlyerImage(ctx, imageData); err != nil {
+		log.Printf("チラシ検証失敗: %v", err)
+		return nil, err
+	}
+	log.Println("チラシ画像の検証が完了しました")
+
+	// 3. Call Gemini API for detailed analysis
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY is not set")
@@ -71,7 +99,7 @@ func (u *FlyerUsecase) AnalyzeAndSaveFlyer(ctx context.Context, fileHeader *mult
 	}
 	defer client.Close()
 
-	model := client.GenerativeModel("gemini-1.5-flash")
+	model := client.GenerativeModel("gemini-2.5-flash")
 	log.Println("プロンプト生成処理を開始します!")
 	prompt := `添付されたスーパーのチラシ画像を分析し、以下のJSON形式で情報を抽出してください。
 
@@ -353,6 +381,102 @@ func (u *FlyerUsecase) getStoreIDFromToken(token string) (uuid.UUID, error) {
 	return storeID, nil
 }
 
+// validateFlyerImage - 画像がチラシかどうかを判定する関数
+func (u *FlyerUsecase) validateFlyerImage(ctx context.Context, imageData []byte) error {
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	if apiKey == "" {
+		return fmt.Errorf("GEMINI_API_KEY is not set")
+	}
+
+	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	if err != nil {
+		return fmt.Errorf("failed to create genai client: %w", err)
+	}
+	defer client.Close()
+
+	model := client.GenerativeModel("gemini-1.5-flash")
+	
+	// チラシ判定用のプロンプト
+	validationPrompt := `添付された画像を分析して、これがスーパーマーケットのチラシ（広告）画像かどうかを判定してください。
+
+判定基準：
+- スーパーマーケットの商品情報（商品名、価格、特売情報など）が含まれている
+- セール情報やキャンペーン情報が記載されている
+- 店舗名や営業時間などの店舗情報が含まれている
+- 食品や日用品などのスーパーで販売される商品が写っている
+
+以下のJSON形式で回答してください：
+{
+  "is_flyer": true/false,
+  "confidence": 0.0-1.0,
+  "reason": "判定理由の説明"
+}
+
+JSONオブジェクトのみを出力してください。マークダウンのバッククォートは含めないでください。`
+
+	resp, err := model.GenerateContent(ctx, genai.Text(validationPrompt), genai.ImageData("png", imageData))
+	if err != nil {
+		return fmt.Errorf("failed to validate image: %w", err)
+	}
+
+	// レスポンスを解析
+	var responseText string
+	for _, cand := range resp.Candidates {
+		if cand.Content != nil {
+			for _, part := range cand.Content.Parts {
+				if txt, ok := part.(genai.Text); ok {
+					responseText += string(txt)
+				}
+			}
+		}
+	}
+
+	// JSON文字列をクリーンアップ
+	re := regexp.MustCompile("(?s)```json(.*)```")
+	matches := re.FindStringSubmatch(responseText)
+	if len(matches) > 1 {
+		responseText = strings.TrimSpace(matches[1])
+	} else {
+		responseText = strings.TrimSpace(responseText)
+	}
+
+	log.Printf("Flyer validation response: %s", responseText)
+
+	// レスポンスをパース
+	var validationResult struct {
+		IsFlyer    bool    `json:"is_flyer"`
+		Confidence float64 `json:"confidence"`
+		Reason     string  `json:"reason"`
+	}
+
+	if err := json.Unmarshal([]byte(responseText), &validationResult); err != nil {
+		return fmt.Errorf("failed to parse validation response: %w", err)
+	}
+
+	// チラシでない場合はカスタムエラーを返す
+	if !validationResult.IsFlyer {
+		if validationResult.Confidence >= 0.7 {
+			return NewFlyerValidationError(
+				fmt.Sprintf("アップロードされた画像はスーパーマーケットのチラシではありません。理由: %s", validationResult.Reason),
+				validationResult.Confidence,
+			)
+		} else {
+			return NewFlyerValidationError(
+				fmt.Sprintf("アップロードされた画像がチラシかどうか判定できませんでした。より明確なチラシ画像をアップロードしてください。理由: %s", validationResult.Reason),
+				validationResult.Confidence,
+			)
+		}
+	}
+
+	// 信頼度が低い場合は警告
+	if validationResult.Confidence < 0.5 {
+		log.Printf("Warning: Low confidence flyer detection (%.2f): %s", validationResult.Confidence, validationResult.Reason)
+	}
+
+	log.Printf("Image validated as flyer with confidence: %.2f", validationResult.Confidence)
+	return nil
+}
+
 // AI分析部分を抽出したヘルパー関数
 func (u *FlyerUsecase) analyzeFlyer(ctx context.Context, imageData []byte) (*dto.FlyerData, error) {
 	apiKey := os.Getenv("GEMINI_API_KEY")
@@ -474,18 +598,26 @@ func (u *FlyerUsecase) AnalyzeAndUpdateStoreFromFlyerWithData(ctx context.Contex
 		return nil, fmt.Errorf("failed to read image data: %w", err)
 	}
 
-	// 4. AI分析でチラシ情報を抽出
+	// 4. チラシかどうかの事前検証
+	log.Println("チラシ画像の検証を開始します...")
+	if err := u.validateFlyerImage(ctx, imageData); err != nil {
+		log.Printf("チラシ検証失敗: %v", err)
+		return nil, err
+	}
+	log.Println("チラシ画像の検証が完了しました")
+
+	// 5. AI分析でチラシ情報を抽出
 	flyerData, err := u.analyzeFlyer(ctx, imageData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to analyze flyer: %w", err)
 	}
 
-	// 5. flyerDataUpdateからDisplayExpiryDateを設定
+	// 6. flyerDataUpdateからDisplayExpiryDateを設定
 	if flyerDataUpdate != nil && flyerDataUpdate.DisplayExpiryDate != nil {
 		flyerData.DisplayExpiryDate = flyerDataUpdate.DisplayExpiryDate
 	}
 
-	// 6. 店舗情報を更新（空でない値のみ更新）
+	// 7. 店舗情報を更新（空でない値のみ更新）
 	if flyerData.StoreInfo.Name != "" {
 		currentStore.Name = flyerData.StoreInfo.Name
 	}
@@ -500,12 +632,12 @@ func (u *FlyerUsecase) AnalyzeAndUpdateStoreFromFlyerWithData(ctx context.Contex
 	}
 	currentStore.UpdatedAt = time.Now()
 
-	// 7. 店舗情報を更新
+	// 8. 店舗情報を更新
 	if err := u.storeRepository.Update(ctx, currentStore); err != nil {
 		return nil, fmt.Errorf("failed to update store: %w", err)
 	}
 
-	// 8. チラシから抽出された商品を店舗商品として自動登録
+	// 9. チラシから抽出された商品を店舗商品として自動登録
 	if flyerData.FlyerItemsInfo != nil && len(flyerData.FlyerItemsInfo) > 0 {
 		for _, item := range flyerData.FlyerItemsInfo {
 			if item.Product.Name == "" {
@@ -571,7 +703,7 @@ func (u *FlyerUsecase) AnalyzeAndUpdateStoreFromFlyerWithData(ctx context.Contex
 		}
 	}
 
-	// 9. チラシ情報を保存
+	// 10. チラシ情報を保存
 	flyerToSave := &entity.Flyer{
 		ImageData: imageData,
 	}
@@ -581,7 +713,7 @@ func (u *FlyerUsecase) AnalyzeAndUpdateStoreFromFlyerWithData(ctx context.Contex
 		return nil, fmt.Errorf("failed to save flyer data: %w", err)
 	}
 
-	// 10. レスポンス作成
+	// 11. レスポンス作成
 	response := &FlyerResponse{
 		ID:                savedFlyer.ID.String(),
 		StoreID:           storeID.String(),
