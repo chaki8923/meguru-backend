@@ -135,6 +135,12 @@ variable "r2_public_bucket_domain" {
   type        = string
 }
 
+variable "gemini_api_key" {
+  description = "Gemini API key for AI services"
+  type        = string
+  sensitive   = true
+}
+
 # Data sources
 data "aws_availability_zones" "available" {
   state = "available"
@@ -418,6 +424,7 @@ resource "aws_apprunner_service" "main" {
           R2_SECRET_KEY           = var.r2_secret_key
           R2_BUCKET_URL           = var.r2_bucket_url
           R2_PUBLIC_BUCKET_DOMAIN = var.r2_public_bucket_domain
+          GEMINI_API_KEY          = var.gemini_api_key
           GIN_MODE                = "release"
         }
       }

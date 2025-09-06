@@ -394,7 +394,7 @@ func (u *FlyerUsecase) validateFlyerImage(ctx context.Context, imageData []byte)
 	}
 	defer client.Close()
 
-	model := client.GenerativeModel("gemini-1.5-flash")
+	model := client.GenerativeModel("gemini-2.5-flash")
 	
 	// チラシ判定用のプロンプト
 	validationPrompt := `添付された画像を分析して、これがスーパーマーケットのチラシ（広告）画像かどうかを判定してください。
@@ -490,7 +490,7 @@ func (u *FlyerUsecase) analyzeFlyer(ctx context.Context, imageData []byte) (*dto
 	}
 	defer client.Close()
 
-	model := client.GenerativeModel("gemini-1.5-flash")
+	model := client.GenerativeModel("gemini-2.5-flash")
 	log.Println("プロンプト生成処理を開始します!")
 	prompt := `添付されたスーパーのチラシ画像を分析し、以下のJSON形式で情報を抽出してください。
 
