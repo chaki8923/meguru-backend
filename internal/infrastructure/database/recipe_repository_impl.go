@@ -1,15 +1,18 @@
 package database
+
 import (
 	"context"
 	"database/sql"
 	"fmt"
 	"meguru-backend/internal/domain/entity"
 	"meguru-backend/internal/domain/repository"
-	"github.com/lib/pq"
+	"strings"
 )
+
 type RecipeRepositoryImpl struct {
 	db *sql.DB
 }
+
 func NewRecipeRepository(db *sql.DB) repository.RecipeRepository {
 	return &RecipeRepositoryImpl{db: db}
 }
@@ -118,14 +121,25 @@ func (r *RecipeRepositoryImpl) SearchRecipesByIngredients(ctx context.Context, i
 	if len(ingredientNames) == 0 {
 		return []*entity.Recipe{}, nil
 	}
-	query := `
+
+	// 部分一致検索用のクエリを構築
+	var conditions []string
+	var args []interface{}
+
+	for i, ingredientName := range ingredientNames {
+		conditions = append(conditions, fmt.Sprintf("ri.name ILIKE $%d", i+1))
+		args = append(args, "%"+ingredientName+"%")
+	}
+
+	query := fmt.Sprintf(`
 		SELECT DISTINCT r.id, r.recipe_id, r.name, r.author_comment, r.cook_time, r.calories, r.total_price, r.cooking_point, r.image_url, r.created_at, r.updated_at
 		FROM recipes r
 		INNER JOIN recipe_ingredients ri ON r.recipe_id = ri.recipe_id
-		WHERE ri.name = ANY($1) AND r.deleted_at IS NULL AND ri.deleted_at IS NULL
+		WHERE (%s) AND r.deleted_at IS NULL AND ri.deleted_at IS NULL
 		ORDER BY r.name
-	`
-	rows, err := r.db.QueryContext(ctx, query, pq.Array(ingredientNames))
+	`, strings.Join(conditions, " OR "))
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search recipes by ingredients: %w", err)
 	}

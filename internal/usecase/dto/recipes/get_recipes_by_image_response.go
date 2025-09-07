@@ -2,7 +2,9 @@ package dto
 
 type GetRecipesByImageResponse struct {
 	ExtractedIngredients []string        `json:"extracted_ingredients"`
-	Recipes              []*RecipeResult `json:"recipes"`
+	LowCalorieRecipes    []*RecipeResult `json:"low_calorie_recipes"`
+	LowPriceRecipes      []*RecipeResult `json:"low_price_recipes"`
+	QuickCookRecipes     []*RecipeResult `json:"quick_cook_recipes"`
 }
 
 type RecipeResult struct {
@@ -10,6 +12,7 @@ type RecipeResult struct {
 	Name        string   `json:"name"`
 	CookTime    int      `json:"cook_time"`
 	Calories    int      `json:"calories"`
+	TotalPrice  int      `json:"total_price"`
 	ImageURL    string   `json:"image_url,omitempty"`
 	Ingredients []string `json:"ingredients"`
 	Seasonings  []string `json:"seasonings"`
