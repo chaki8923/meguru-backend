@@ -304,11 +304,49 @@ func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecip
 		quickCookRecipes = quickCookRecipes[:10]
 	}
 
+	// 8. AIおすすめレシピを取得（完全に独立したランダム選択）
+	// 元の全レシピから直接選ぶ（他の3つのカテゴリとは独立）
+	var aiRecommendedRecipes []*dto.RecipeResult
+	if len(allRecipes) > 0 {
+		// 全レシピ名を収集
+		var allRecipeNames []string
+		for _, recipe := range allRecipes {
+			allRecipeNames = append(allRecipeNames, recipe.Name)
+		}
+
+		// OpenAI APIでAIおすすめレシピを取得
+		recommendedNames, err := u.openAIService.GetRecommendedRecipes(allRecipeNames)
+		if err != nil {
+			// OpenAI APIエラーの場合は、全レシピからランダムに10件を返す
+			if len(allRecipes) > 10 {
+				aiRecommendedRecipes = allRecipes[:10]
+			} else {
+				aiRecommendedRecipes = allRecipes
+			}
+		} else {
+			// AIおすすめレシピ名に基づいてレシピを選択
+			recipeMap := make(map[string]*dto.RecipeResult)
+			for _, recipe := range allRecipes {
+				recipeMap[recipe.Name] = recipe
+			}
+
+			for _, recommendedName := range recommendedNames {
+				if recipe, exists := recipeMap[recommendedName]; exists {
+					aiRecommendedRecipes = append(aiRecommendedRecipes, recipe)
+					if len(aiRecommendedRecipes) >= 10 {
+						break
+					}
+				}
+			}
+		}
+	}
+
 	return &dto.GetRecipesByImageResponse{
 		ExtractedIngredients: ingredientNames,
 		LowCalorieRecipes:    lowCalorieRecipes,
 		LowPriceRecipes:      lowPriceRecipes,
 		QuickCookRecipes:     quickCookRecipes,
+		AIRecommendedRecipes: aiRecommendedRecipes,
 	}, nil
 }
 

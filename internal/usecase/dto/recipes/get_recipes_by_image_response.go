@@ -5,6 +5,7 @@ type GetRecipesByImageResponse struct {
 	LowCalorieRecipes    []*RecipeResult `json:"low_calorie_recipes"`
 	LowPriceRecipes      []*RecipeResult `json:"low_price_recipes"`
 	QuickCookRecipes     []*RecipeResult `json:"quick_cook_recipes"`
+	AIRecommendedRecipes []*RecipeResult `json:"ai_recommended_recipes"`
 }
 
 type RecipeResult struct {
