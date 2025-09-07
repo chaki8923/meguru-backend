@@ -7,6 +7,7 @@ import (
 	"meguru-backend/internal/domain/repository"
 	"meguru-backend/internal/infrastructure/service"
 	dto "meguru-backend/internal/usecase/dto/recipes"
+	"sort"
 	"strings"
 	"time"
 
@@ -207,14 +208,14 @@ func (u *RecipeUsecase) GetRecipeDetailWithAuth(ctx context.Context, recipeID, u
 }
 
 func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecipesByImageRequest, userID string) (*dto.GetRecipesByImageResponse, error) {
-	// 1. 画像から食材を取得
-	analysisResult, err := u.openAIService.GetIngredientsFromImage(req.ImageBase64)
+	// 1. 画像から食材を抽出
+	ingredientsText, err := u.openAIService.GetIngredientsFromImage(req.ImageBase64)
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. 解析結果から食材名を抽出（カンマ区切りを分割）
-	ingredientNames := strings.Split(analysisResult, ",")
+	// 2. カンマ区切りで分割して食材名のリストを作成
+	ingredientNames := strings.Split(ingredientsText, ",")
 	for i, name := range ingredientNames {
 		ingredientNames[i] = strings.TrimSpace(name)
 	}
@@ -226,7 +227,7 @@ func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecip
 	}
 
 	// 4. 各レシピの詳細情報を取得
-	var searchResults []*dto.RecipeResult
+	var allRecipes []*dto.RecipeResult
 	for _, recipe := range recipes {
 		// 食材情報を取得
 		ingredients, err := u.recipeRepo.GetRecipeIngredients(ctx, recipe.RecipeID)
@@ -259,22 +260,55 @@ func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecip
 		}
 		savedFlg := savedRecipe != nil
 
-		searchResult := &dto.RecipeResult{
+		recipeResult := &dto.RecipeResult{
 			RecipeID:    recipe.RecipeID,
 			Name:        recipe.Name,
 			CookTime:    recipe.CookTime,
 			Calories:    recipe.Calories,
+			TotalPrice:  recipe.TotalPrice,
 			ImageURL:    recipe.ImageURL,
 			Ingredients: ingredientNames,
 			Seasonings:  seasoningNames,
 			SavedFlg:    savedFlg,
 		}
-		searchResults = append(searchResults, searchResult)
+		allRecipes = append(allRecipes, recipeResult)
+	}
+
+	// 5. カロリー順（昇順）でソート
+	lowCalorieRecipes := make([]*dto.RecipeResult, len(allRecipes))
+	copy(lowCalorieRecipes, allRecipes)
+	sort.Slice(lowCalorieRecipes, func(i, j int) bool {
+		return lowCalorieRecipes[i].Calories < lowCalorieRecipes[j].Calories
+	})
+	if len(lowCalorieRecipes) > 10 {
+		lowCalorieRecipes = lowCalorieRecipes[:10]
+	}
+
+	// 6. 金額順（昇順）でソート
+	lowPriceRecipes := make([]*dto.RecipeResult, len(allRecipes))
+	copy(lowPriceRecipes, allRecipes)
+	sort.Slice(lowPriceRecipes, func(i, j int) bool {
+		return lowPriceRecipes[i].TotalPrice < lowPriceRecipes[j].TotalPrice
+	})
+	if len(lowPriceRecipes) > 10 {
+		lowPriceRecipes = lowPriceRecipes[:10]
+	}
+
+	// 7. 調理時間順（昇順）でソート
+	quickCookRecipes := make([]*dto.RecipeResult, len(allRecipes))
+	copy(quickCookRecipes, allRecipes)
+	sort.Slice(quickCookRecipes, func(i, j int) bool {
+		return quickCookRecipes[i].CookTime < quickCookRecipes[j].CookTime
+	})
+	if len(quickCookRecipes) > 10 {
+		quickCookRecipes = quickCookRecipes[:10]
 	}
 
 	return &dto.GetRecipesByImageResponse{
 		ExtractedIngredients: ingredientNames,
-		Recipes:              searchResults,
+		LowCalorieRecipes:    lowCalorieRecipes,
+		LowPriceRecipes:      lowPriceRecipes,
+		QuickCookRecipes:     quickCookRecipes,
 	}, nil
 }
 
