@@ -327,7 +327,7 @@ resource "aws_rds_cluster_instance" "main" {
   instance_class       = "db.serverless"
   engine               = aws_rds_cluster.main.engine
   engine_version       = aws_rds_cluster.main.engine_version
-  publicly_accessible = false
+  publicly_accessible = true
 
   tags = {
     Name = "${var.project_name}-AuroraInstance1"
@@ -447,8 +447,7 @@ resource "aws_apprunner_service" "main" {
 
   network_configuration {
     egress_configuration {
-      egress_type       = "VPC"
-      vpc_connector_arn = aws_apprunner_vpc_connector.main.arn
+      egress_type = "DEFAULT"
     }
   }
 
