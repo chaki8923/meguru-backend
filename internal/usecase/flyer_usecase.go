@@ -162,92 +162,10 @@ func (u *FlyerUsecase) AnalyzeAndSaveFlyer(ctx context.Context, fileHeader *mult
 	}
 	log.Println("チラシ画像の検証が完了しました")
 
-	// 3. Call Gemini API for detailed analysis
-	apiKey := os.Getenv("GEMINI_API_KEY")
-	if apiKey == "" {
-		return nil, fmt.Errorf("GEMINI_API_KEY is not set")
-	}
-
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	// 3. AI分析でチラシ情報を抽出 (Lambda経由)
+	flyerData, err := u.analyzeFlyer(ctx, imageData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create genai client: %w", err)
-	}
-	defer client.Close()
-
-	model := client.GenerativeModel("gemini-2.5-flash")
-	log.Println("プロンプト生成処理を開始します!")
-	prompt := `添付されたスーパーのチラシ画像を分析し、以下のJSON形式で情報を抽出してください。
-
-出力形式のルール:
-- JSONオブジェクトのみを生成してください。マークダウンのバッククォート("""json ... """)は含めないでください。
-- すべての情報は指定されたJSON構造に従う必要があります。
-- 日付は "YYYY-MM-DD" 形式で記述してください。
-- 価格は数値型(integer)で設定してください。
-
-JSON構造:
-{
-  "store": {
-    "name": "店舗名",
-    "prefecture": "都道府県",
-    "city": "市区町村",
-    "street": "番地"
-  },
-  "campaign": {
-    "name": "キャンペーン名 (例: スーパー火曜祭)",
-    "start_date": "開始日",
-    "end_date": "終了日"
-  },
-  "flyer_items": [
-    {
-      "product": {
-        "name": "商品名",
-        "category": "カテゴリ"
-      },
-      "price_excluding_tax": 0,
-      "price_including_tax": 0,
-      "unit": "単位 (例: 各, 1個)",
-      "restriction_note": "購入制限 (例: お一人様2点限り)"
-    }
-  ]
-}
-
-上記の指示に従って、JSONオブジェクトのみを出力してください。`
-
-	resp, err := model.GenerateContent(ctx, genai.Text(prompt), genai.ImageData("png", imageData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate content: %w", err)
-	}
-
-	// 3. Extract and parse JSON response
-	var jsonString string
-	for _, cand := range resp.Candidates {
-		if cand.Content != nil {
-			for _, part := range cand.Content.Parts {
-				if txt, ok := part.(genai.Text); ok {
-					jsonString += string(txt)
-				}
-			}
-		}
-	}
-
-	// Clean up the JSON string
-	re := regexp.MustCompile("(?s)```json(.*)```")
-	matches := re.FindStringSubmatch(jsonString)
-	if len(matches) > 1 {
-		jsonString = strings.TrimSpace(matches[1])
-	} else {
-		jsonString = strings.TrimSpace(jsonString)
-	}
-
-	if jsonString == "" {
-		return nil, fmt.Errorf("no JSON generated from Gemini")
-	}
-
-	log.Printf("Generated JSON: %s", jsonString)
-
-	var flyerData dto.FlyerData
-	if err := json.Unmarshal([]byte(jsonString), &flyerData); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
+		return nil, fmt.Errorf("failed to analyze flyer: %w", err)
 	}
 
 	// 4. Save data to the database
@@ -255,7 +173,7 @@ JSON構造:
 		ImageData: imageData,
 	}
 
-	savedFlyer, storeID, err := u.flyerRepository.SaveFlyer(ctx, flyerToSave, &flyerData)
+	savedFlyer, storeID, err := u.flyerRepository.SaveFlyer(ctx, flyerToSave, flyerData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save flyer data: %w", err)
 	}
@@ -265,7 +183,7 @@ JSON構造:
 		ID:                savedFlyer.ID.String(),
 		StoreID:           storeID.String(),
 		ImageData:         base64.StdEncoding.EncodeToString(savedFlyer.ImageData),
-		FlyerData:         &flyerData,
+		FlyerData:         flyerData,
 		DisplayExpiryDate: savedFlyer.DisplayExpiryDate,
 		CreatedAt:         savedFlyer.CreatedAt,
 	}
