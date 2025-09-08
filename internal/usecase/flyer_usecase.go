@@ -1,7 +1,6 @@
 package usecase
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -9,7 +8,6 @@ import (
 	"io/ioutil"
 	"log"
 	"mime/multipart"
-	"net/http"
 	"os"
 	"regexp"
 	"strings"
@@ -19,6 +17,10 @@ import (
 	"meguru-backend/internal/domain/repository"
 	"meguru-backend/internal/dto"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/lambda"
+	"github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"github.com/google/uuid"
 )
 
@@ -79,17 +81,31 @@ func NewFlyerUsecase(flyerRepository repository.FlyerRepository, storeRepository
 	}
 }
 
-// Lambda関数を呼び出すヘルパー関数
+// Lambda関数を呼び出すヘルパー関数 (AWS SDK経由)
 func (u *FlyerUsecase) callGeminiLambda(ctx context.Context, imageData []byte, operation string, customPrompt ...string) (string, error) {
-	lambdaURL := os.Getenv("GEMINI_LAMBDA_URL")
-	if lambdaURL == "" {
-		return "", fmt.Errorf("GEMINI_LAMBDA_URL is not set")
+	lambdaFunctionName := os.Getenv("GEMINI_LAMBDA_FUNCTION")
+	if lambdaFunctionName == "" {
+		return "", fmt.Errorf("GEMINI_LAMBDA_FUNCTION is not set")
 	}
+
+	awsRegion := os.Getenv("AWS_REGION")
+	if awsRegion == "" {
+		awsRegion = "ap-northeast-1" // デフォルトリージョン
+	}
+
+	// AWS設定を読み込み
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(awsRegion))
+	if err != nil {
+		return "", fmt.Errorf("failed to load AWS config: %w", err)
+	}
+
+	// Lambdaクライアント作成
+	lambdaClient := lambda.NewFromConfig(cfg)
 
 	// Base64エンコード
 	imageBase64 := base64.StdEncoding.EncodeToString(imageData)
 
-	// リクエスト準備
+	// リクエストペイロード準備
 	req := GeminiLambdaRequest{
 		ImageData: imageBase64,
 		Operation: operation,
@@ -99,38 +115,30 @@ func (u *FlyerUsecase) callGeminiLambda(ctx context.Context, imageData []byte, o
 	}
 
 	// JSON変換
-	requestBody, err := json.Marshal(req)
+	payload, err := json.Marshal(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// HTTPクライアントでPOST
-	client := &http.Client{
-		Timeout: 120 * time.Second,
+	// Lambda関数を呼び出し
+	log.Printf("Calling Lambda function: %s", lambdaFunctionName)
+	result, err := lambdaClient.Invoke(ctx, &lambda.InvokeInput{
+		FunctionName:   aws.String(lambdaFunctionName),
+		InvocationType: types.InvocationTypeRequestResponse,
+		Payload:        payload,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to invoke Lambda function: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", lambdaURL, bytes.NewBuffer(requestBody))
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	log.Printf("Calling Lambda function: %s", lambdaURL)
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return "", fmt.Errorf("failed to call Lambda function: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// レスポンス読み取り
-	responseBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read response: %w", err)
+	// レスポンスを確認
+	if result.FunctionError != nil {
+		return "", fmt.Errorf("Lambda function error: %s", *result.FunctionError)
 	}
 
 	// JSON パース
 	var lambdaResp GeminiLambdaResponse
-	if err := json.Unmarshal(responseBody, &lambdaResp); err != nil {
+	if err := json.Unmarshal(result.Payload, &lambdaResp); err != nil {
 		return "", fmt.Errorf("failed to parse Lambda response: %w", err)
 	}
 

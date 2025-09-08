@@ -4,12 +4,14 @@ FROM --platform=linux/amd64 golang:1.23-alpine AS builder
 
 WORKDIR /app
 
-# Goモジュールの依存関係をキャッシュするために先にコピー
-COPY go.mod go.sum ./
-RUN go mod download
+# GitをインストールしてからGoモジュールをダウンロード
+RUN apk add --no-cache git
 
-# アプリケーションのソースコードをコピー
+# アプリケーションのソースコードを全てコピー
 COPY . .
+
+# go.sumを生成して依存関係をダウンロード
+RUN go mod tidy && go mod download
 
 # migrate CLIをインストール
 RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.2

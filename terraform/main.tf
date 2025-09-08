@@ -168,6 +168,49 @@ resource "aws_iam_role_policy_attachment" "gemini_lambda_basic_execution" {
   role       = aws_iam_role.gemini_lambda_role.name
 }
 
+resource "aws_iam_role_policy_attachment" "gemini_lambda_vpc_execution" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+  role       = aws_iam_role.gemini_lambda_role.name
+}
+
+# App Runner Instance Role (for Lambda invocation)
+resource "aws_iam_role" "app_runner_instance_role" {
+  name = "${var.project_name}-apprunner-instance-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "tasks.apprunner.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-AppRunnerInstanceRole"
+  }
+}
+
+resource "aws_iam_role_policy" "app_runner_lambda_invoke" {
+  name = "lambda-invoke-policy"
+  role = aws_iam_role.app_runner_instance_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "lambda:InvokeFunction"
+        Resource = aws_lambda_function.gemini_api.arn
+      }
+    ]
+  })
+}
+
 resource "aws_lambda_function" "gemini_api" {
   function_name = "${var.project_name}-gemini-api"
   role         = aws_iam_role.gemini_lambda_role.arn
@@ -178,6 +221,11 @@ resource "aws_lambda_function" "gemini_api" {
   # Placeholder zip file - we'll update this later
   filename         = "gemini-lambda.zip"
   source_code_hash = filebase64sha256("gemini-lambda.zip")
+
+  vpc_config {
+    subnet_ids         = [aws_subnet.database_1.id, aws_subnet.database_2.id]
+    security_group_ids = [aws_security_group.lambda.id]
+  }
 
   environment {
     variables = {
@@ -190,18 +238,6 @@ resource "aws_lambda_function" "gemini_api" {
   }
 }
 
-resource "aws_lambda_function_url" "gemini_api" {
-  function_name      = aws_lambda_function.gemini_api.function_name
-  authorization_type = "NONE"
-
-  cors {
-    allow_credentials = false
-    allow_origins     = ["*"]
-    allow_methods     = ["POST"]
-    allow_headers     = ["content-type"]
-    max_age          = 86400
-  }
-}
 
 # Data sources
 data "aws_availability_zones" "available" {
@@ -296,6 +332,24 @@ resource "aws_route_table_association" "public_2" {
 }
 
 # Security Groups
+resource "aws_security_group" "lambda" {
+  name_prefix = "${var.project_name}-lambda-"
+  vpc_id      = aws_vpc.main.id
+  description = "Security group for Lambda functions"
+
+  egress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "HTTPS outbound for Gemini API"
+  }
+
+  tags = {
+    Name = "${var.project_name}-LambdaSecurityGroup"
+  }
+}
+
 resource "aws_security_group" "app_runner" {
   name_prefix = "${var.project_name}-apprunner-"
   vpc_id      = aws_vpc.main.id
@@ -487,7 +541,8 @@ resource "aws_apprunner_service" "main" {
           R2_BUCKET_URL           = var.r2_bucket_url
           R2_PUBLIC_BUCKET_DOMAIN = var.r2_public_bucket_domain
           GEMINI_API_KEY          = var.gemini_api_key
-          GEMINI_LAMBDA_URL       = aws_lambda_function_url.gemini_api.function_url
+          GEMINI_LAMBDA_FUNCTION  = aws_lambda_function.gemini_api.function_name
+          AWS_REGION              = "ap-northeast-1"
           GIN_MODE                = "release"
         }
       }
@@ -504,8 +559,9 @@ resource "aws_apprunner_service" "main" {
   }
 
   instance_configuration {
-    cpu    = var.app_runner_cpu
-    memory = var.app_runner_memory
+    instance_role_arn = aws_iam_role.app_runner_instance_role.arn
+    cpu               = var.app_runner_cpu
+    memory            = var.app_runner_memory
   }
 
   network_configuration {
@@ -552,7 +608,3 @@ output "vpc_id" {
 output "auto_scaling_config_arn" {
   value = aws_apprunner_auto_scaling_configuration_version.main.arn
 }
-
-output "gemini_lambda_url" {
-  value = aws_lambda_function_url.gemini_api.function_url
-} 
