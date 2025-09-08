@@ -141,6 +141,68 @@ variable "gemini_api_key" {
   sensitive   = true
 }
 
+# Lambda function for Gemini API calls
+resource "aws_iam_role" "gemini_lambda_role" {
+  name = "${var.project_name}-gemini-lambda-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-GeminiLambdaRole"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "gemini_lambda_basic_execution" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+  role       = aws_iam_role.gemini_lambda_role.name
+}
+
+resource "aws_lambda_function" "gemini_api" {
+  function_name = "${var.project_name}-gemini-api"
+  role         = aws_iam_role.gemini_lambda_role.arn
+  handler      = "bootstrap"
+  runtime      = "provided.al2023"
+  timeout      = 120
+
+  # Placeholder zip file - we'll update this later
+  filename         = "gemini-lambda.zip"
+  source_code_hash = filebase64sha256("gemini-lambda.zip")
+
+  environment {
+    variables = {
+      GEMINI_API_KEY = var.gemini_api_key
+    }
+  }
+
+  tags = {
+    Name = "${var.project_name}-GeminiLambda"
+  }
+}
+
+resource "aws_lambda_function_url" "gemini_api" {
+  function_name      = aws_lambda_function.gemini_api.function_name
+  authorization_type = "NONE"
+
+  cors {
+    allow_credentials = false
+    allow_origins     = ["*"]
+    allow_methods     = ["POST"]
+    allow_headers     = ["content-type"]
+    max_age          = 86400
+  }
+}
+
 # Data sources
 data "aws_availability_zones" "available" {
   state = "available"
@@ -327,7 +389,7 @@ resource "aws_rds_cluster_instance" "main" {
   instance_class       = "db.serverless"
   engine               = aws_rds_cluster.main.engine
   engine_version       = aws_rds_cluster.main.engine_version
-  publicly_accessible = true
+  publicly_accessible = false
 
   tags = {
     Name = "${var.project_name}-AuroraInstance1"
@@ -425,6 +487,7 @@ resource "aws_apprunner_service" "main" {
           R2_BUCKET_URL           = var.r2_bucket_url
           R2_PUBLIC_BUCKET_DOMAIN = var.r2_public_bucket_domain
           GEMINI_API_KEY          = var.gemini_api_key
+          GEMINI_LAMBDA_URL       = aws_lambda_function_url.gemini_api.function_url
           GIN_MODE                = "release"
         }
       }
@@ -447,7 +510,8 @@ resource "aws_apprunner_service" "main" {
 
   network_configuration {
     egress_configuration {
-      egress_type = "DEFAULT"
+      egress_type       = "VPC"
+      vpc_connector_arn = aws_apprunner_vpc_connector.main.arn
     }
   }
 
@@ -487,4 +551,8 @@ output "vpc_id" {
 
 output "auto_scaling_config_arn" {
   value = aws_apprunner_auto_scaling_configuration_version.main.arn
+}
+
+output "gemini_lambda_url" {
+  value = aws_lambda_function_url.gemini_api.function_url
 } 
