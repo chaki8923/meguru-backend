@@ -6,6 +6,8 @@ toolchain go1.23.9
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
+	github.com/aws/aws-sdk-go-v2/config v1.27.24
+	github.com/aws/aws-sdk-go-v2/service/lambda v1.56.3
 	github.com/gin-contrib/cors v1.7.5
 	github.com/gin-gonic/gin v1.10.1
 	github.com/google/generative-ai-go v0.20.1

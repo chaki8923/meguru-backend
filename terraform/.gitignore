@@ -5,6 +5,9 @@
 .terraform/
 .terraform.lock.hcl
 
+./generate-tfvars.sh
+terraform.tfvars
+
 # OS
 .DS_Store
 Thumbs.db

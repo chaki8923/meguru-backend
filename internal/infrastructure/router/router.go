@@ -13,9 +13,20 @@ func NewRouter(userController *controller.UserController, healthController *cont
 
 	// CORS設定
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://localhost:3000"}
-	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
-	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization", "X-Requested-With"}
+	config.AllowOrigins = []string{
+		"http://localhost:3000", 
+		"http://localhost:3001",
+		"http://localhost:3002",
+		"http://localhost:3003",
+		"http://127.0.0.1:3000",
+		"http://127.0.0.1:3001",
+		"http://127.0.0.1:3002",
+		"http://127.0.0.1:3003",
+		"https://meguru-food.com",
+		"https://www.meguru-food.com",
+	}
+	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}
+	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization", "X-Requested-With", "Accept", "Accept-Encoding", "X-CSRF-Token"}
 	config.AllowCredentials = true
 
 	r.Use(cors.New(config))
@@ -84,6 +95,7 @@ func NewRouter(userController *controller.UserController, healthController *cont
 
 		// 商品関連のエンドポイント（認証必須）
 		products := api.Group("/products")
+		products.Use(AuthMiddleware()) // 店舗認証が必要
 		{
 			products.GET("", productController.ListStoreProducts)
 			products.POST("", productController.CreateStoreProduct)

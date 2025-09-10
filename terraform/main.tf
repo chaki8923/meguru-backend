@@ -108,6 +108,137 @@ variable "max_aurora_capacity" {
   default     = 1
 }
 
+variable "r2_endpoint" {
+  description = "R2 endpoint URL"
+  type        = string
+}
+
+variable "r2_access_key" {
+  description = "R2 access key"
+  type        = string
+  sensitive   = true
+}
+
+variable "r2_secret_key" {
+  description = "R2 secret key"
+  type        = string
+  sensitive   = true
+}
+
+variable "r2_bucket_url" {
+  description = "R2 bucket URL"
+  type        = string
+}
+
+variable "r2_public_bucket_domain" {
+  description = "R2 public bucket domain"
+  type        = string
+}
+
+variable "gemini_api_key" {
+  description = "Gemini API key for AI services"
+  type        = string
+  sensitive   = true
+}
+
+# Lambda function for Gemini API calls
+resource "aws_iam_role" "gemini_lambda_role" {
+  name = "${var.project_name}-gemini-lambda-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-GeminiLambdaRole"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "gemini_lambda_basic_execution" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+  role       = aws_iam_role.gemini_lambda_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "gemini_lambda_vpc_execution" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+  role       = aws_iam_role.gemini_lambda_role.name
+}
+
+# App Runner Instance Role (for Lambda invocation)
+resource "aws_iam_role" "app_runner_instance_role" {
+  name = "${var.project_name}-apprunner-instance-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "tasks.apprunner.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-AppRunnerInstanceRole"
+  }
+}
+
+resource "aws_iam_role_policy" "app_runner_lambda_invoke" {
+  name = "lambda-invoke-policy"
+  role = aws_iam_role.app_runner_instance_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "lambda:InvokeFunction"
+        Resource = aws_lambda_function.gemini_api.arn
+      }
+    ]
+  })
+}
+
+resource "aws_lambda_function" "gemini_api" {
+  function_name = "${var.project_name}-gemini-api"
+  role         = aws_iam_role.gemini_lambda_role.arn
+  handler      = "bootstrap"
+  runtime      = "provided.al2023"
+  timeout      = 120
+
+  # Placeholder zip file - we'll update this later
+  filename         = "gemini-lambda.zip"
+  source_code_hash = filebase64sha256("gemini-lambda.zip")
+
+  vpc_config {
+    subnet_ids         = [aws_subnet.database_1.id, aws_subnet.database_2.id]
+    security_group_ids = [aws_security_group.lambda.id]
+  }
+
+  environment {
+    variables = {
+      GEMINI_API_KEY = var.gemini_api_key
+    }
+  }
+
+  tags = {
+    Name = "${var.project_name}-GeminiLambda"
+  }
+}
+
+
 # Data sources
 data "aws_availability_zones" "available" {
   state = "available"
@@ -201,6 +332,24 @@ resource "aws_route_table_association" "public_2" {
 }
 
 # Security Groups
+resource "aws_security_group" "lambda" {
+  name_prefix = "${var.project_name}-lambda-"
+  vpc_id      = aws_vpc.main.id
+  description = "Security group for Lambda functions"
+
+  egress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "HTTPS outbound for Gemini API"
+  }
+
+  tags = {
+    Name = "${var.project_name}-LambdaSecurityGroup"
+  }
+}
+
 resource "aws_security_group" "app_runner" {
   name_prefix = "${var.project_name}-apprunner-"
   vpc_id      = aws_vpc.main.id
@@ -304,7 +453,7 @@ resource "aws_rds_cluster_instance" "main" {
 # App Runner VPC Connector
 resource "aws_apprunner_vpc_connector" "main" {
   vpc_connector_name = "${var.project_name}-vpc-connector"
-  subnets           = [aws_subnet.public_1.id, aws_subnet.public_2.id]
+  subnets           = [aws_subnet.database_1.id, aws_subnet.database_2.id]
   security_groups   = [aws_security_group.app_runner.id]
 
   tags = {
@@ -379,18 +528,27 @@ resource "aws_apprunner_service" "main" {
       image_configuration {
         port = var.app_runner_port
         runtime_environment_variables = {
-          PORT        = tostring(var.app_runner_port)
-          DB_HOST     = aws_rds_cluster.main.endpoint
-          DB_PORT     = tostring(aws_rds_cluster.main.port)
-          DB_USER     = var.database_username
-          DB_PASSWORD = var.database_password
-          DB_NAME     = var.database_name
-          GIN_MODE    = "release"
+          PORT                    = tostring(var.app_runner_port)
+          DB_HOST                 = aws_rds_cluster.main.endpoint
+          DB_PORT                 = tostring(aws_rds_cluster.main.port)
+          DB_USER                 = var.database_username
+          DB_PASSWORD             = var.database_password
+          DB_NAME                 = var.database_name
+          DATABASE_URL            = "postgres://${var.database_username}:${var.database_password}@${aws_rds_cluster.main.endpoint}:${aws_rds_cluster.main.port}/${var.database_name}?sslmode=disable"
+          R2_ENDPOINT             = var.r2_endpoint
+          R2_ACCESS_KEY           = var.r2_access_key
+          R2_SECRET_KEY           = var.r2_secret_key
+          R2_BUCKET_URL           = var.r2_bucket_url
+          R2_PUBLIC_BUCKET_DOMAIN = var.r2_public_bucket_domain
+          GEMINI_API_KEY          = var.gemini_api_key
+          GEMINI_LAMBDA_FUNCTION  = aws_lambda_function.gemini_api.function_name
+          AWS_REGION              = "ap-northeast-1"
+          GIN_MODE                = "release"
         }
       }
     }
 
-    auto_deployments_enabled = false
+    auto_deployments_enabled = true
 
     dynamic "authentication_configuration" {
       for_each = var.image_repository_type == "ECR" ? [1] : []
@@ -401,8 +559,9 @@ resource "aws_apprunner_service" "main" {
   }
 
   instance_configuration {
-    cpu    = var.app_runner_cpu
-    memory = var.app_runner_memory
+    instance_role_arn = aws_iam_role.app_runner_instance_role.arn
+    cpu               = var.app_runner_cpu
+    memory            = var.app_runner_memory
   }
 
   network_configuration {
@@ -448,4 +607,4 @@ output "vpc_id" {
 
 output "auto_scaling_config_arn" {
   value = aws_apprunner_auto_scaling_configuration_version.main.arn
-} 
+}
