@@ -17,10 +17,8 @@ import (
 	"meguru-backend/internal/domain/repository"
 	"meguru-backend/internal/dto"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/lambda"
-	"github.com/aws/aws-sdk-go-v2/service/lambda/types"
+	"github.com/google/generative-ai-go/genai"
+	"google.golang.org/api/option"
 	"github.com/google/uuid"
 )
 
@@ -29,19 +27,6 @@ type FlyerValidationError struct {
 	Type    string  `json:"type"`
 	Message string  `json:"message"`
 	Confidence float64 `json:"confidence,omitempty"`
-}
-
-// Lambda関数との通信用構造体
-type GeminiLambdaRequest struct {
-	ImageData string `json:"image_data"`  // Base64 encoded image
-	Operation string `json:"operation"`   // "validate" or "analyze"
-	Prompt    string `json:"prompt"`      // Custom prompt if needed
-}
-
-type GeminiLambdaResponse struct {
-	Success bool   `json:"success"`
-	Data    string `json:"data"`    // JSON response from Gemini
-	Error   string `json:"error"`
 }
 
 func (e *FlyerValidationError) Error() string {
@@ -81,74 +66,6 @@ func NewFlyerUsecase(flyerRepository repository.FlyerRepository, storeRepository
 	}
 }
 
-// Lambda関数を呼び出すヘルパー関数 (AWS SDK経由)
-func (u *FlyerUsecase) callGeminiLambda(ctx context.Context, imageData []byte, operation string, customPrompt ...string) (string, error) {
-	lambdaFunctionName := os.Getenv("GEMINI_LAMBDA_FUNCTION")
-	if lambdaFunctionName == "" {
-		return "", fmt.Errorf("GEMINI_LAMBDA_FUNCTION is not set")
-	}
-
-	awsRegion := os.Getenv("AWS_REGION")
-	if awsRegion == "" {
-		awsRegion = "ap-northeast-1" // デフォルトリージョン
-	}
-
-	// AWS設定を読み込み
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(awsRegion))
-	if err != nil {
-		return "", fmt.Errorf("failed to load AWS config: %w", err)
-	}
-
-	// Lambdaクライアント作成
-	lambdaClient := lambda.NewFromConfig(cfg)
-
-	// Base64エンコード
-	imageBase64 := base64.StdEncoding.EncodeToString(imageData)
-
-	// リクエストペイロード準備
-	req := GeminiLambdaRequest{
-		ImageData: imageBase64,
-		Operation: operation,
-	}
-	if len(customPrompt) > 0 {
-		req.Prompt = customPrompt[0]
-	}
-
-	// JSON変換
-	payload, err := json.Marshal(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	// Lambda関数を呼び出し
-	log.Printf("Calling Lambda function: %s", lambdaFunctionName)
-	result, err := lambdaClient.Invoke(ctx, &lambda.InvokeInput{
-		FunctionName:   aws.String(lambdaFunctionName),
-		InvocationType: types.InvocationTypeRequestResponse,
-		Payload:        payload,
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to invoke Lambda function: %w", err)
-	}
-
-	// レスポンスを確認
-	if result.FunctionError != nil {
-		return "", fmt.Errorf("Lambda function error: %s", *result.FunctionError)
-	}
-
-	// JSON パース
-	var lambdaResp GeminiLambdaResponse
-	if err := json.Unmarshal(result.Payload, &lambdaResp); err != nil {
-		return "", fmt.Errorf("failed to parse Lambda response: %w", err)
-	}
-
-	if !lambdaResp.Success {
-		return "", fmt.Errorf("Lambda function error: %s", lambdaResp.Error)
-	}
-
-	return lambdaResp.Data, nil
-}
-
 func (u *FlyerUsecase) AnalyzeAndSaveFlyer(ctx context.Context, fileHeader *multipart.FileHeader) (*FlyerResponse, error) {
 	// 1. Read the uploaded file
 	file, err := fileHeader.Open()
@@ -170,10 +87,92 @@ func (u *FlyerUsecase) AnalyzeAndSaveFlyer(ctx context.Context, fileHeader *mult
 	}
 	log.Println("チラシ画像の検証が完了しました")
 
-	// 3. AI分析でチラシ情報を抽出 (Lambda経由)
-	flyerData, err := u.analyzeFlyer(ctx, imageData)
+	// 3. Call Gemini API for detailed analysis
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	if apiKey == "" {
+		return nil, fmt.Errorf("GEMINI_API_KEY is not set")
+	}
+
+	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
-		return nil, fmt.Errorf("failed to analyze flyer: %w", err)
+		return nil, fmt.Errorf("failed to create genai client: %w", err)
+	}
+	defer client.Close()
+
+	model := client.GenerativeModel("gemini-2.5-flash")
+	log.Println("プロンプト生成処理を開始します!")
+	prompt := `添付されたスーパーのチラシ画像を分析し、以下のJSON形式で情報を抽出してください。
+
+出力形式のルール:
+- JSONオブジェクトのみを生成してください。マークダウンのバッククォート("""json ... """)は含めないでください。
+- すべての情報は指定されたJSON構造に従う必要があります。
+- 日付は "YYYY-MM-DD" 形式で記述してください。
+- 価格は数値型(integer)で設定してください。
+
+JSON構造:
+{
+  "store": {
+    "name": "店舗名",
+    "prefecture": "都道府県",
+    "city": "市区町村",
+    "street": "番地"
+  },
+  "campaign": {
+    "name": "キャンペーン名 (例: スーパー火曜祭)",
+    "start_date": "開始日",
+    "end_date": "終了日"
+  },
+  "flyer_items": [
+    {
+      "product": {
+        "name": "商品名",
+        "category": "カテゴリ"
+      },
+      "price_excluding_tax": 0,
+      "price_including_tax": 0,
+      "unit": "単位 (例: 各, 1個)",
+      "restriction_note": "購入制限 (例: お一人様2点限り)"
+    }
+  ]
+}
+
+上記の指示に従って、JSONオブジェクトのみを出力してください。`
+
+	resp, err := model.GenerateContent(ctx, genai.Text(prompt), genai.ImageData("png", imageData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate content: %w", err)
+	}
+
+	// 3. Extract and parse JSON response
+	var jsonString string
+	for _, cand := range resp.Candidates {
+		if cand.Content != nil {
+			for _, part := range cand.Content.Parts {
+				if txt, ok := part.(genai.Text); ok {
+					jsonString += string(txt)
+				}
+			}
+		}
+	}
+
+	// Clean up the JSON string
+	re := regexp.MustCompile("(?s)```json(.*)```")
+	matches := re.FindStringSubmatch(jsonString)
+	if len(matches) > 1 {
+		jsonString = strings.TrimSpace(matches[1])
+	} else {
+		jsonString = strings.TrimSpace(jsonString)
+	}
+
+	if jsonString == "" {
+		return nil, fmt.Errorf("no JSON generated from Gemini")
+	}
+
+	log.Printf("Generated JSON: %s", jsonString)
+
+	var flyerData dto.FlyerData
+	if err := json.Unmarshal([]byte(jsonString), &flyerData); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
 
 	// 4. Save data to the database
@@ -181,7 +180,7 @@ func (u *FlyerUsecase) AnalyzeAndSaveFlyer(ctx context.Context, fileHeader *mult
 		ImageData: imageData,
 	}
 
-	savedFlyer, storeID, err := u.flyerRepository.SaveFlyer(ctx, flyerToSave, flyerData)
+	savedFlyer, storeID, err := u.flyerRepository.SaveFlyer(ctx, flyerToSave, &flyerData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save flyer data: %w", err)
 	}
@@ -191,7 +190,7 @@ func (u *FlyerUsecase) AnalyzeAndSaveFlyer(ctx context.Context, fileHeader *mult
 		ID:                savedFlyer.ID.String(),
 		StoreID:           storeID.String(),
 		ImageData:         base64.StdEncoding.EncodeToString(savedFlyer.ImageData),
-		FlyerData:         flyerData,
+		FlyerData:         &flyerData,
 		DisplayExpiryDate: savedFlyer.DisplayExpiryDate,
 		CreatedAt:         savedFlyer.CreatedAt,
 	}
@@ -382,14 +381,54 @@ func (u *FlyerUsecase) getStoreIDFromToken(token string) (uuid.UUID, error) {
 	return storeID, nil
 }
 
-// validateFlyerImage - 画像がチラシかどうかを判定する関数 (Lambda経由)
+// validateFlyerImage - 画像がチラシかどうかを判定する関数
 func (u *FlyerUsecase) validateFlyerImage(ctx context.Context, imageData []byte) error {
-	log.Println("Calling Lambda function for flyer validation...")
-	
-	// Lambda関数を呼び出す
-	responseText, err := u.callGeminiLambda(ctx, imageData, "validate")
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	if apiKey == "" {
+		return fmt.Errorf("GEMINI_API_KEY is not set")
+	}
+
+	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
-		return fmt.Errorf("failed to validate image via Lambda: %w", err)
+		return fmt.Errorf("failed to create genai client: %w", err)
+	}
+	defer client.Close()
+
+	model := client.GenerativeModel("gemini-2.5-flash")
+	
+	// チラシ判定用のプロンプト
+	validationPrompt := `添付された画像を分析して、これがスーパーマーケットのチラシ（広告）画像かどうかを判定してください。
+
+判定基準：
+- スーパーマーケットの商品情報（商品名、価格、特売情報など）が含まれている
+- セール情報やキャンペーン情報が記載されている
+- 店舗名や営業時間などの店舗情報が含まれている
+- 食品や日用品などのスーパーで販売される商品が写っている
+
+以下のJSON形式で回答してください：
+{
+  "is_flyer": true/false,
+  "confidence": 0.0-1.0,
+  "reason": "判定理由の説明"
+}
+
+JSONオブジェクトのみを出力してください。マークダウンのバッククォートは含めないでください。`
+
+	resp, err := model.GenerateContent(ctx, genai.Text(validationPrompt), genai.ImageData("png", imageData))
+	if err != nil {
+		return fmt.Errorf("failed to validate image: %w", err)
+	}
+
+	// レスポンスを解析
+	var responseText string
+	for _, cand := range resp.Candidates {
+		if cand.Content != nil {
+			for _, part := range cand.Content.Parts {
+				if txt, ok := part.(genai.Text); ok {
+					responseText += string(txt)
+				}
+			}
+		}
 	}
 
 	// JSON文字列をクリーンアップ
@@ -438,14 +477,73 @@ func (u *FlyerUsecase) validateFlyerImage(ctx context.Context, imageData []byte)
 	return nil
 }
 
-// AI分析部分を抽出したヘルパー関数 (Lambda経由)
+// AI分析部分を抽出したヘルパー関数
 func (u *FlyerUsecase) analyzeFlyer(ctx context.Context, imageData []byte) (*dto.FlyerData, error) {
-	log.Println("Calling Lambda function for flyer analysis...")
-	
-	// Lambda関数を呼び出す
-	jsonString, err := u.callGeminiLambda(ctx, imageData, "analyze")
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	if apiKey == "" {
+		return nil, fmt.Errorf("GEMINI_API_KEY is not set")
+	}
+
+	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
-		return nil, fmt.Errorf("failed to analyze flyer via Lambda: %w", err)
+		return nil, fmt.Errorf("failed to create genai client: %w", err)
+	}
+	defer client.Close()
+
+	model := client.GenerativeModel("gemini-2.5-flash")
+	log.Println("プロンプト生成処理を開始します!")
+	prompt := `添付されたスーパーのチラシ画像を分析し、以下のJSON形式で情報を抽出してください。
+
+出力形式のルール:
+- JSONオブジェクトのみを生成してください。マークダウンのバッククォート("""json ... """)は含めないでください。
+- すべての情報は指定されたJSON構造に従う必要があります。
+- 日付は "YYYY-MM-DD" 形式で記述してください。
+- 価格は数値型(integer)で設定してください。
+
+JSON構造:
+{
+  "store": {
+    "name": "店舗名",
+    "prefecture": "都道府県",
+    "city": "市区町村",
+    "street": "番地"
+  },
+  "campaign": {
+    "name": "キャンペーン名 (例: スーパー火曜祭)",
+    "start_date": "開始日",
+    "end_date": "終了日"
+  },
+  "flyer_items": [
+    {
+      "product": {
+        "name": "商品名",
+        "category": "カテゴリ"
+      },
+      "price_excluding_tax": 0,
+      "price_including_tax": 0,
+      "unit": "単位 (例: 各, 1個)",
+      "restriction_note": "購入制限 (例: お一人様2点限り)"
+    }
+  ]
+}
+
+上記の指示に従って、JSONオブジェクトのみを出力してください。`
+
+	resp, err := model.GenerateContent(ctx, genai.Text(prompt), genai.ImageData("png", imageData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate content: %w", err)
+	}
+
+	// JSON応答を抽出・解析
+	var jsonString string
+	for _, cand := range resp.Candidates {
+		if cand.Content != nil {
+			for _, part := range cand.Content.Parts {
+				if txt, ok := part.(genai.Text); ok {
+					jsonString += string(txt)
+				}
+			}
+		}
 	}
 
 	// JSON文字列をクリーンアップ
@@ -458,7 +556,7 @@ func (u *FlyerUsecase) analyzeFlyer(ctx context.Context, imageData []byte) (*dto
 	}
 
 	if jsonString == "" {
-		return nil, fmt.Errorf("no JSON generated from Lambda")
+		return nil, fmt.Errorf("no JSON generated from Gemini")
 	}
 
 	log.Printf("Generated JSON: %s", jsonString)
@@ -697,4 +795,3 @@ func (u *FlyerUsecase) GetNearbyFlyers(ctx context.Context, city string, limit i
 	log.Printf("FlyerUsecase: Successfully retrieved %d nearby flyers for city: %s", len(responses), city)
 	return responses, nil
 }
-
