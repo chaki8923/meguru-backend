@@ -406,6 +406,26 @@ resource "aws_security_group_rule" "app_runner_http_outbound" {
   security_group_id = aws_security_group.app_runner.id
 }
 
+# App Runner SMTP Outbound Access for Email
+resource "aws_security_group_rule" "app_runner_smtp_outbound" {
+  type              = "egress"
+  from_port         = 587
+  to_port           = 587
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.app_runner.id
+}
+
+# App Runner SMTPS Outbound Access for Email (alternative port)
+resource "aws_security_group_rule" "app_runner_smtps_outbound" {
+  type              = "egress"
+  from_port         = 465
+  to_port           = 465
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.app_runner.id
+}
+
 # Aurora Resources
 resource "aws_db_subnet_group" "main" {
   name       = "${var.project_name}-db-subnet-group"
