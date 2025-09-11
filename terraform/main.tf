@@ -200,6 +200,27 @@ resource "aws_subnet" "database_2" {
   }
 }
 
+# Private Subnets for App Runner
+resource "aws_subnet" "private_1" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.5.0/24"
+  availability_zone = data.aws_availability_zones.available.names[0]
+
+  tags = {
+    Name = "${var.project_name}-PrivateSubnet1"
+  }
+}
+
+resource "aws_subnet" "private_2" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.6.0/24"
+  availability_zone = data.aws_availability_zones.available.names[1]
+
+  tags = {
+    Name = "${var.project_name}-PrivateSubnet2"
+  }
+}
+
 # Internet Gateway
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
@@ -231,6 +252,53 @@ resource "aws_route_table_association" "public_1" {
 resource "aws_route_table_association" "public_2" {
   subnet_id      = aws_subnet.public_2.id
   route_table_id = aws_route_table.public.id
+}
+
+# Elastic IP for NAT Gateway
+resource "aws_eip" "nat" {
+  domain = "vpc"
+  
+  tags = {
+    Name = "${var.project_name}-NATGateway-EIP"
+  }
+  
+  depends_on = [aws_internet_gateway.main]
+}
+
+# NAT Gateway
+resource "aws_nat_gateway" "main" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public_1.id
+
+  tags = {
+    Name = "${var.project_name}-NATGateway"
+  }
+  
+  depends_on = [aws_internet_gateway.main]
+}
+
+# Route Table for Private Subnets
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.main.id
+  }
+
+  tags = {
+    Name = "${var.project_name}-PrivateRouteTable"
+  }
+}
+
+resource "aws_route_table_association" "private_1" {
+  subnet_id      = aws_subnet.private_1.id
+  route_table_id = aws_route_table.private.id
+}
+
+resource "aws_route_table_association" "private_2" {
+  subnet_id      = aws_subnet.private_2.id
+  route_table_id = aws_route_table.private.id
 }
 
 # Security Groups
@@ -271,6 +339,26 @@ resource "aws_security_group_rule" "database_ingress_from_app_runner" {
   protocol                 = "tcp"
   source_security_group_id = aws_security_group.app_runner.id # こちらは正しい
   security_group_id        = aws_security_group.database.id
+}
+
+# App Runner HTTPS Outbound Access
+resource "aws_security_group_rule" "app_runner_https_outbound" {
+  type              = "egress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.app_runner.id
+}
+
+# App Runner HTTP Outbound Access (if needed)
+resource "aws_security_group_rule" "app_runner_http_outbound" {
+  type              = "egress"
+  from_port         = 80
+  to_port           = 80
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.app_runner.id
 }
 
 # Aurora Resources
@@ -337,7 +425,7 @@ resource "aws_rds_cluster_instance" "main" {
 # App Runner VPC Connector
 resource "aws_apprunner_vpc_connector" "main" {
   vpc_connector_name = "${var.project_name}-vpc-connector"
-  subnets           = [aws_subnet.database_1.id, aws_subnet.database_2.id]
+  subnets           = [aws_subnet.private_1.id, aws_subnet.private_2.id]
   security_groups   = [aws_security_group.app_runner.id]
 
   tags = {
