@@ -141,6 +141,51 @@ variable "gemini_api_key" {
   sensitive   = true
 }
 
+variable "jwt_secret" {
+  description = "JWT secret key for authentication"
+  type        = string
+  sensitive   = true
+}
+
+variable "vapid_public_key" {
+  description = "VAPID public key for Web Push notifications"
+  type        = string
+}
+
+variable "vapid_private_key" {
+  description = "VAPID private key for Web Push notifications"
+  type        = string
+  sensitive   = true
+}
+
+variable "email_host" {
+  description = "Email SMTP host"
+  type        = string
+}
+
+variable "email_port" {
+  description = "Email SMTP port"
+  type        = number
+  default     = 587
+}
+
+variable "email_username" {
+  description = "Email SMTP username"
+  type        = string
+}
+
+variable "email_password" {
+  description = "Email SMTP password"
+  type        = string
+  sensitive   = true
+}
+
+variable "openai_api_key" {
+  description = "OpenAI API key for AI services"
+  type        = string
+  sensitive   = true
+}
+
 # Data sources
 data "aws_availability_zones" "available" {
   state = "available"
@@ -513,6 +558,14 @@ resource "aws_apprunner_service" "main" {
           R2_BUCKET_URL           = var.r2_bucket_url
           R2_PUBLIC_BUCKET_DOMAIN = var.r2_public_bucket_domain
           GEMINI_API_KEY          = var.gemini_api_key
+          JWT_SECRET              = var.jwt_secret
+          VAPID_PUBLIC_KEY        = var.vapid_public_key
+          VAPID_PRIVATE_KEY       = var.vapid_private_key
+          EMAIL_HOST              = var.email_host
+          EMAIL_PORT              = tostring(var.email_port)
+          EMAIL_USERNAME          = var.email_username
+          EMAIL_PASSWORD          = var.email_password
+          OPENAI_API_KEY          = var.openai_api_key
           GIN_MODE                = "release"
         }
       }
