@@ -64,3 +64,7 @@ cp terraform.tfvars.example terraform.tfvars
 - `terraform.tfvars.example`: 設定例
 - `generate-tfvars.sh`: 自動生成スクリプト
 - `.gitignore`: 機密ファイルの除外設定
+
+
+## 削除
+- terraform destroy -auto-approve
