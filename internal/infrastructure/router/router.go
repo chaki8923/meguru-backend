@@ -13,7 +13,7 @@ func NewRouter(userController *controller.UserController, healthController *cont
 
 	// CORS設定
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://localhost:3000"}
+	config.AllowOrigins = []string{"http://localhost:3000", "https://meguru-front.com","https://www.meguru-front.com","https://www.meguru-front.jp", "https://meguru-front.jp"}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization", "X-Requested-With"}
 	config.AllowCredentials = true
