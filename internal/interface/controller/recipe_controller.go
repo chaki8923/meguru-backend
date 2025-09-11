@@ -7,6 +7,7 @@ import (
 	dto "meguru-backend/internal/usecase/dto/recipes"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type RecipeController struct {
@@ -104,7 +105,7 @@ func (c *RecipeController) GetSavedRecipes(ctx *gin.Context) {
 		return
 	}
 
-	result, err := c.recipeUsecase.GetSavedRecipes(ctx.Request.Context(), userID.(string))
+	result, err := c.recipeUsecase.GetSavedRecipes(ctx.Request.Context(), userID.(uuid.UUID).String())
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
