@@ -31,7 +31,7 @@ func (c *RecipeController) GetRecipeDetail(ctx *gin.Context) {
 
 	if exists {
 		// 認証がある場合は保存状態もチェック
-		recipeDetail, err = c.recipeUsecase.GetRecipeDetailWithAuth(ctx.Request.Context(), recipeID, userID.(string))
+		recipeDetail, err = c.recipeUsecase.GetRecipeDetailWithAuth(ctx.Request.Context(), recipeID, userID.(uuid.UUID).String())
 	} else {
 		// 認証がない場合は通常の取得
 		recipeDetail, err = c.recipeUsecase.GetRecipeDetail(ctx.Request.Context(), recipeID)
@@ -65,7 +65,7 @@ func (c *RecipeController) GetRecipesByImage(ctx *gin.Context) {
 		return
 	}
 
-	result, err := c.recipeUsecase.GetRecipesByImage(ctx.Request.Context(), &req, userID.(string))
+	result, err := c.recipeUsecase.GetRecipesByImage(ctx.Request.Context(), &req, userID.(uuid.UUID).String())
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -88,7 +88,7 @@ func (c *RecipeController) SaveRecipe(ctx *gin.Context) {
 		return
 	}
 
-	result, err := c.recipeUsecase.SaveRecipe(ctx.Request.Context(), &req, userID.(string))
+	result, err := c.recipeUsecase.SaveRecipe(ctx.Request.Context(), &req, userID.(uuid.UUID).String())
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -134,7 +134,7 @@ func (c *RecipeController) DeleteSavedRecipe(ctx *gin.Context) {
 		RecipeID: recipeID,
 	}
 
-	result, err := c.recipeUsecase.DeleteSavedRecipe(ctx.Request.Context(), req, userID.(string))
+	result, err := c.recipeUsecase.DeleteSavedRecipe(ctx.Request.Context(), req, userID.(uuid.UUID).String())
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
