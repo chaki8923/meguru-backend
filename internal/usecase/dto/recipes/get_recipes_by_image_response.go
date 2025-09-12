@@ -1,5 +1,7 @@
 package dto
 
+import "time"
+
 type GetRecipesByImageResponse struct {
 	ExtractedIngredients []string        `json:"extracted_ingredients"`
 	LowCalorieRecipes    []*RecipeResult `json:"low_calorie_recipes"`
@@ -9,13 +11,14 @@ type GetRecipesByImageResponse struct {
 }
 
 type RecipeResult struct {
-	RecipeID    string   `json:"recipe_id"`
-	Name        string   `json:"name"`
-	CookTime    int      `json:"cook_time"`
-	Calories    int      `json:"calories"`
-	TotalPrice  int      `json:"total_price"`
-	ImageURL    string   `json:"image_url,omitempty"`
-	Ingredients []string `json:"ingredients"`
-	Seasonings  []string `json:"seasonings"`
-	SavedFlg    bool     `json:"saved_flg"`
+	RecipeID    string    `json:"recipe_id"`
+	Name        string    `json:"name"`
+	CookTime    int       `json:"cook_time"`
+	Calories    int       `json:"calories"`
+	TotalPrice  int       `json:"total_price"`
+	ImageURL    string    `json:"image_url,omitempty"`
+	Ingredients []string  `json:"ingredients"`
+	Seasonings  []string  `json:"seasonings"`
+	SavedFlg    bool      `json:"saved_flg"`
+	CreatedAt   time.Time `json:"created_at"`
 }

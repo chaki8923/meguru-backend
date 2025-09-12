@@ -444,10 +444,12 @@ func (u *RecipeUsecase) GetSavedRecipes(ctx context.Context, userID string) (*dt
 			Name:        recipe.Name,
 			CookTime:    recipe.CookTime,
 			Calories:    recipe.Calories,
+			TotalPrice:  recipe.TotalPrice,
 			ImageURL:    recipe.ImageURL,
 			Ingredients: ingredientNames,
 			Seasonings:  seasoningNames,
-			SavedFlg:    true, // 保存済みレシピなのでtrue
+			SavedFlg:    true,                  // 保存済みレシピなのでtrue
+			CreatedAt:   savedRecipe.CreatedAt, // 保存日時を使用
 		}
 
 		recipeResults = append(recipeResults, recipeResult)
