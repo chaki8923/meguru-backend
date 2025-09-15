@@ -25,7 +25,7 @@ func NewRouter(userController *controller.UserController, healthController *cont
 		"https://meguru-food.com",
 		"https://www.meguru-food.com",
 		"https://meguru-food.jp",
-		"https://www.meguru-food.jp",
+		"https://www.meguru-food.jp"
 	}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}
 	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization", "X-Requested-With", "Accept", "Accept-Encoding", "X-CSRF-Token"}

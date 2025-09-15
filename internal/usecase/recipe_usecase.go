@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"meguru-backend/internal/domain/entity"
 	"meguru-backend/internal/domain/repository"
 	"meguru-backend/internal/infrastructure/service"
@@ -16,12 +17,14 @@ import (
 
 type RecipeUsecase struct {
 	recipeRepo    repository.RecipeRepository
+	userRepo      repository.UserRepository
 	openAIService *service.OpenAIService
 }
 
-func NewRecipeUsecase(recipeRepo repository.RecipeRepository, openAIService *service.OpenAIService) *RecipeUsecase {
+func NewRecipeUsecase(recipeRepo repository.RecipeRepository, userRepo repository.UserRepository, openAIService *service.OpenAIService) *RecipeUsecase {
 	return &RecipeUsecase{
 		recipeRepo:    recipeRepo,
+		userRepo:      userRepo,
 		openAIService: openAIService,
 	}
 }
@@ -351,7 +354,29 @@ func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecip
 }
 
 func (u *RecipeUsecase) SaveRecipe(ctx context.Context, req *dto.SaveRecipeRequest, userID string) (*dto.SaveRecipeResponse, error) {
-	// 1. 既に保存されているかチェック
+	// デバッグログ追加
+	fmt.Printf("SaveRecipe called with userID: %s, recipeID: %s\n", userID, req.RecipeID)
+	
+	// 1. ユーザーが存在するかチェック
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		fmt.Printf("Invalid user ID format: %s\n", userID)
+		return nil, errors.New("invalid user ID format")
+	}
+	
+	user, err := u.userRepo.GetByID(ctx, userUUID)
+	if err != nil {
+		fmt.Printf("Error getting user by ID: %v\n", err)
+		return nil, err
+	}
+	if user == nil {
+		fmt.Printf("User not found: %s\n", userID)
+		return nil, errors.New("user not found")
+	}
+	
+	fmt.Printf("User found: %s\n", user.Email)
+
+	// 2. 既に保存されているかチェック
 	existingSavedRecipe, err := u.recipeRepo.GetSavedRecipeByUserAndRecipe(ctx, userID, req.RecipeID)
 	if err != nil {
 		return nil, err
@@ -360,7 +385,7 @@ func (u *RecipeUsecase) SaveRecipe(ctx context.Context, req *dto.SaveRecipeReque
 		return nil, errors.New("recipe is already saved by this user")
 	}
 
-	// 2. レシピが存在するかチェック
+	// 3. レシピが存在するかチェック
 	recipe, err := u.recipeRepo.GetRecipeByID(ctx, req.RecipeID)
 	if err != nil {
 		return nil, err
@@ -369,7 +394,7 @@ func (u *RecipeUsecase) SaveRecipe(ctx context.Context, req *dto.SaveRecipeReque
 		return nil, errors.New("recipe not found")
 	}
 
-	// 3. 保存レシピエンティティを作成
+	// 4. 保存レシピエンティティを作成
 	savedRecipe := &entity.SavedRecipe{
 		SavedRecipeID: uuid.New().String(),
 		RecipeID:      req.RecipeID,
@@ -379,7 +404,7 @@ func (u *RecipeUsecase) SaveRecipe(ctx context.Context, req *dto.SaveRecipeReque
 		UpdatedAt:     time.Now(),
 	}
 
-	// 4. データベースに保存
+	// 5. データベースに保存
 	err = u.recipeRepo.SaveRecipe(ctx, savedRecipe)
 	if err != nil {
 		return nil, err
