@@ -737,6 +737,8 @@ func (u *FlyerUsecase) GetAllFlyersByStoreID(ctx context.Context, storeID string
 		return nil, fmt.Errorf("failed to get all flyers from repository: %w", err)
 	}
 
+	log.Printf("FlyerUsecase: Repository returned %d flyers for storeID: %s", len(flyers), storeID)
+
 	if len(flyers) == 0 {
 		log.Printf("FlyerUsecase: No flyers found for storeID: %s", storeID)
 		return []*FlyerResponse{}, nil // Return empty slice instead of nil
