@@ -141,103 +141,50 @@ variable "gemini_api_key" {
   sensitive   = true
 }
 
-# Lambda function for Gemini API calls
-resource "aws_iam_role" "gemini_lambda_role" {
-  name = "${var.project_name}-gemini-lambda-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = {
-    Name = "${var.project_name}-GeminiLambdaRole"
-  }
+variable "jwt_secret" {
+  description = "JWT secret key for authentication"
+  type        = string
+  sensitive   = true
 }
 
-resource "aws_iam_role_policy_attachment" "gemini_lambda_basic_execution" {
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-  role       = aws_iam_role.gemini_lambda_role.name
+variable "vapid_public_key" {
+  description = "VAPID public key for Web Push notifications"
+  type        = string
 }
 
-resource "aws_iam_role_policy_attachment" "gemini_lambda_vpc_execution" {
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-  role       = aws_iam_role.gemini_lambda_role.name
+variable "vapid_private_key" {
+  description = "VAPID private key for Web Push notifications"
+  type        = string
+  sensitive   = true
 }
 
-# App Runner Instance Role (for Lambda invocation)
-resource "aws_iam_role" "app_runner_instance_role" {
-  name = "${var.project_name}-apprunner-instance-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "tasks.apprunner.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = {
-    Name = "${var.project_name}-AppRunnerInstanceRole"
-  }
+variable "email_host" {
+  description = "Email SMTP host"
+  type        = string
 }
 
-resource "aws_iam_role_policy" "app_runner_lambda_invoke" {
-  name = "lambda-invoke-policy"
-  role = aws_iam_role.app_runner_instance_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = "lambda:InvokeFunction"
-        Resource = aws_lambda_function.gemini_api.arn
-      }
-    ]
-  })
+variable "email_port" {
+  description = "Email SMTP port"
+  type        = number
+  default     = 587
 }
 
-resource "aws_lambda_function" "gemini_api" {
-  function_name = "${var.project_name}-gemini-api"
-  role         = aws_iam_role.gemini_lambda_role.arn
-  handler      = "bootstrap"
-  runtime      = "provided.al2023"
-  timeout      = 120
-
-  # Placeholder zip file - we'll update this later
-  filename         = "gemini-lambda.zip"
-  source_code_hash = filebase64sha256("gemini-lambda.zip")
-
-  vpc_config {
-    subnet_ids         = [aws_subnet.database_1.id, aws_subnet.database_2.id]
-    security_group_ids = [aws_security_group.lambda.id]
-  }
-
-  environment {
-    variables = {
-      GEMINI_API_KEY = var.gemini_api_key
-    }
-  }
-
-  tags = {
-    Name = "${var.project_name}-GeminiLambda"
-  }
+variable "email_username" {
+  description = "Email SMTP username"
+  type        = string
 }
 
+variable "email_password" {
+  description = "Email SMTP password"
+  type        = string
+  sensitive   = true
+}
+
+variable "openai_api_key" {
+  description = "OpenAI API key for AI services"
+  type        = string
+  sensitive   = true
+}
 
 # Data sources
 data "aws_availability_zones" "available" {
@@ -298,6 +245,27 @@ resource "aws_subnet" "database_2" {
   }
 }
 
+# Private Subnets for App Runner
+resource "aws_subnet" "private_1" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.5.0/24"
+  availability_zone = data.aws_availability_zones.available.names[0]
+
+  tags = {
+    Name = "${var.project_name}-PrivateSubnet1"
+  }
+}
+
+resource "aws_subnet" "private_2" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.6.0/24"
+  availability_zone = data.aws_availability_zones.available.names[1]
+
+  tags = {
+    Name = "${var.project_name}-PrivateSubnet2"
+  }
+}
+
 # Internet Gateway
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
@@ -331,25 +299,54 @@ resource "aws_route_table_association" "public_2" {
   route_table_id = aws_route_table.public.id
 }
 
-# Security Groups
-resource "aws_security_group" "lambda" {
-  name_prefix = "${var.project_name}-lambda-"
-  vpc_id      = aws_vpc.main.id
-  description = "Security group for Lambda functions"
+# Elastic IP for NAT Gateway
+resource "aws_eip" "nat" {
+  domain = "vpc"
+  
+  tags = {
+    Name = "${var.project_name}-NATGateway-EIP"
+  }
+  
+  depends_on = [aws_internet_gateway.main]
+}
 
-  egress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "HTTPS outbound for Gemini API"
+# NAT Gateway
+resource "aws_nat_gateway" "main" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public_1.id
+
+  tags = {
+    Name = "${var.project_name}-NATGateway"
+  }
+  
+  depends_on = [aws_internet_gateway.main]
+}
+
+# Route Table for Private Subnets
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.main.id
   }
 
   tags = {
-    Name = "${var.project_name}-LambdaSecurityGroup"
+    Name = "${var.project_name}-PrivateRouteTable"
   }
 }
 
+resource "aws_route_table_association" "private_1" {
+  subnet_id      = aws_subnet.private_1.id
+  route_table_id = aws_route_table.private.id
+}
+
+resource "aws_route_table_association" "private_2" {
+  subnet_id      = aws_subnet.private_2.id
+  route_table_id = aws_route_table.private.id
+}
+
+# Security Groups
 resource "aws_security_group" "app_runner" {
   name_prefix = "${var.project_name}-apprunner-"
   vpc_id      = aws_vpc.main.id
@@ -387,6 +384,46 @@ resource "aws_security_group_rule" "database_ingress_from_app_runner" {
   protocol                 = "tcp"
   source_security_group_id = aws_security_group.app_runner.id # こちらは正しい
   security_group_id        = aws_security_group.database.id
+}
+
+# App Runner HTTPS Outbound Access
+resource "aws_security_group_rule" "app_runner_https_outbound" {
+  type              = "egress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.app_runner.id
+}
+
+# App Runner HTTP Outbound Access (if needed)
+resource "aws_security_group_rule" "app_runner_http_outbound" {
+  type              = "egress"
+  from_port         = 80
+  to_port           = 80
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.app_runner.id
+}
+
+# App Runner SMTP Outbound Access for Email
+resource "aws_security_group_rule" "app_runner_smtp_outbound" {
+  type              = "egress"
+  from_port         = 587
+  to_port           = 587
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.app_runner.id
+}
+
+# App Runner SMTPS Outbound Access for Email (alternative port)
+resource "aws_security_group_rule" "app_runner_smtps_outbound" {
+  type              = "egress"
+  from_port         = 465
+  to_port           = 465
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.app_runner.id
 }
 
 # Aurora Resources
@@ -453,7 +490,7 @@ resource "aws_rds_cluster_instance" "main" {
 # App Runner VPC Connector
 resource "aws_apprunner_vpc_connector" "main" {
   vpc_connector_name = "${var.project_name}-vpc-connector"
-  subnets           = [aws_subnet.database_1.id, aws_subnet.database_2.id]
+  subnets           = [aws_subnet.private_1.id, aws_subnet.private_2.id]
   security_groups   = [aws_security_group.app_runner.id]
 
   tags = {
@@ -541,8 +578,14 @@ resource "aws_apprunner_service" "main" {
           R2_BUCKET_URL           = var.r2_bucket_url
           R2_PUBLIC_BUCKET_DOMAIN = var.r2_public_bucket_domain
           GEMINI_API_KEY          = var.gemini_api_key
-          GEMINI_LAMBDA_FUNCTION  = aws_lambda_function.gemini_api.function_name
-          AWS_REGION              = "ap-northeast-1"
+          JWT_SECRET              = var.jwt_secret
+          VAPID_PUBLIC_KEY        = var.vapid_public_key
+          VAPID_PRIVATE_KEY       = var.vapid_private_key
+          EMAIL_HOST              = var.email_host
+          EMAIL_PORT              = tostring(var.email_port)
+          EMAIL_USERNAME          = var.email_username
+          EMAIL_PASSWORD          = var.email_password
+          OPENAI_API_KEY          = var.openai_api_key
           GIN_MODE                = "release"
         }
       }
@@ -559,9 +602,8 @@ resource "aws_apprunner_service" "main" {
   }
 
   instance_configuration {
-    instance_role_arn = aws_iam_role.app_runner_instance_role.arn
-    cpu               = var.app_runner_cpu
-    memory            = var.app_runner_memory
+    cpu    = var.app_runner_cpu
+    memory = var.app_runner_memory
   }
 
   network_configuration {
@@ -607,4 +649,4 @@ output "vpc_id" {
 
 output "auto_scaling_config_arn" {
   value = aws_apprunner_auto_scaling_configuration_version.main.arn
-}
+} 
