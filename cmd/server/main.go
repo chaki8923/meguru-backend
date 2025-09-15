@@ -111,7 +111,7 @@ func main() {
 	newsViewUsecase := usecase.NewNewsViewUsecase(newsViewRepo, storeRepo)
 	newsConsultationUsecase := usecase.NewNewsConsultationUsecase(emailService)
 	tweetUsecase := usecase.NewTweetUsecase(tweetRepo, tweetLikeRepo, storeRepo)
-	recipeUsecase := usecase.NewRecipeUsecase(recipeRepo, openAIService)
+	recipeUsecase := usecase.NewRecipeUsecase(recipeRepo, userRepo, openAIService)
 
 	// Initialize controllers
 	userController := controller.NewUserController(userUsecase)

@@ -30,8 +30,19 @@ func (c *RecipeController) GetRecipeDetail(ctx *gin.Context) {
 	var err error
 
 	if exists {
+		// userIDをuuid.UUIDからstringに変換
+		var userIDStr string
+		if userUUID, ok := userID.(uuid.UUID); ok {
+			userIDStr = userUUID.String()
+		} else if userStr, ok := userID.(string); ok {
+			userIDStr = userStr
+		} else {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type"})
+			return
+		}
+		
 		// 認証がある場合は保存状態もチェック
-		recipeDetail, err = c.recipeUsecase.GetRecipeDetailWithAuth(ctx.Request.Context(), recipeID, userID.(uuid.UUID).String())
+		recipeDetail, err = c.recipeUsecase.GetRecipeDetailWithAuth(ctx.Request.Context(), recipeID, userIDStr)
 	} else {
 		// 認証がない場合は通常の取得
 		recipeDetail, err = c.recipeUsecase.GetRecipeDetail(ctx.Request.Context(), recipeID)
@@ -65,7 +76,18 @@ func (c *RecipeController) GetRecipesByImage(ctx *gin.Context) {
 		return
 	}
 
-	result, err := c.recipeUsecase.GetRecipesByImage(ctx.Request.Context(), &req, userID.(uuid.UUID).String())
+	// userIDをuuid.UUIDからstringに変換
+	var userIDStr string
+	if userUUID, ok := userID.(uuid.UUID); ok {
+		userIDStr = userUUID.String()
+	} else if userStr, ok := userID.(string); ok {
+		userIDStr = userStr
+	} else {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type"})
+		return
+	}
+
+	result, err := c.recipeUsecase.GetRecipesByImage(ctx.Request.Context(), &req, userIDStr)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -88,8 +110,35 @@ func (c *RecipeController) SaveRecipe(ctx *gin.Context) {
 		return
 	}
 
-	result, err := c.recipeUsecase.SaveRecipe(ctx.Request.Context(), &req, userID.(uuid.UUID).String())
+	// userIDをuuid.UUIDからstringに変換
+	var userIDStr string
+	if userUUID, ok := userID.(uuid.UUID); ok {
+		userIDStr = userUUID.String()
+	} else if userStr, ok := userID.(string); ok {
+		userIDStr = userStr
+	} else {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type"})
+		return
+	}
+
+	result, err := c.recipeUsecase.SaveRecipe(ctx.Request.Context(), &req, userIDStr)
 	if err != nil {
+		// ユーザーが見つからない場合は401 Unauthorizedを返す
+		if err.Error() == "user not found" {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "user not found - please login again"})
+			return
+		}
+		// レシピが既に保存されている場合は409 Conflictを返す
+		if err.Error() == "recipe is already saved by this user" {
+			ctx.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		// レシピが見つからない場合は404を返す
+		if err.Error() == "recipe not found" {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		// その他のエラーは500を返す
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -105,7 +154,18 @@ func (c *RecipeController) GetSavedRecipes(ctx *gin.Context) {
 		return
 	}
 
-	result, err := c.recipeUsecase.GetSavedRecipes(ctx.Request.Context(), userID.(uuid.UUID).String())
+	// userIDをuuid.UUIDからstringに変換
+	var userIDStr string
+	if userUUID, ok := userID.(uuid.UUID); ok {
+		userIDStr = userUUID.String()
+	} else if userStr, ok := userID.(string); ok {
+		userIDStr = userStr
+	} else {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type"})
+		return
+	}
+
+	result, err := c.recipeUsecase.GetSavedRecipes(ctx.Request.Context(), userIDStr)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -134,7 +194,18 @@ func (c *RecipeController) DeleteSavedRecipe(ctx *gin.Context) {
 		RecipeID: recipeID,
 	}
 
-	result, err := c.recipeUsecase.DeleteSavedRecipe(ctx.Request.Context(), req, userID.(uuid.UUID).String())
+	// userIDをuuid.UUIDからstringに変換
+	var userIDStr string
+	if userUUID, ok := userID.(uuid.UUID); ok {
+		userIDStr = userUUID.String()
+	} else if userStr, ok := userID.(string); ok {
+		userIDStr = userStr
+	} else {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type"})
+		return
+	}
+
+	result, err := c.recipeUsecase.DeleteSavedRecipe(ctx.Request.Context(), req, userIDStr)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
