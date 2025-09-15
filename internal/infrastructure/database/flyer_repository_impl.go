@@ -333,17 +333,43 @@ func (r *FlyerRepositoryImpl) GetFlyerByStoreID(ctx context.Context, storeID str
 func (r *FlyerRepositoryImpl) GetAllFlyersByStoreID(ctx context.Context, storeID string) ([]*entity.Flyer, []*dto.FlyerData, error) {
 	log.Printf("FlyerRepository: Getting all flyers for storeID: %s", storeID)
 
-	// Use the same query structure as GetFlyerByStoreID but remove LIMIT 1
+	// First, let's check if any flyers exist at all for this store
+	countQuery := `SELECT COUNT(*) FROM flyers WHERE owner_store_id = $1`
+	var count int
+	err := r.db.QueryRowContext(ctx, countQuery, storeID).Scan(&count)
+	if err != nil {
+		log.Printf("FlyerRepository: Failed to count flyers for storeID %s: %v", storeID, err)
+	} else {
+		log.Printf("FlyerRepository: Found %d total flyers for storeID %s", count, storeID)
+	}
+
+	// Check flyers with valid expiry dates
+	validCountQuery := `SELECT COUNT(*) FROM flyers WHERE owner_store_id = $1 AND (display_expiry_date IS NULL OR DATE(display_expiry_date) >= CURRENT_DATE)`
+	var validCount int
+	err = r.db.QueryRowContext(ctx, validCountQuery, storeID).Scan(&validCount)
+	if err != nil {
+		log.Printf("FlyerRepository: Failed to count valid flyers for storeID %s: %v", storeID, err)
+	} else {
+		log.Printf("FlyerRepository: Found %d valid (non-expired) flyers for storeID %s", validCount, storeID)
+	}
+
+	// Use LEFT JOINs to ensure we get flyers even if campaigns or products are missing
 	query := `
 		SELECT 
 			f.id, f.image_data, f.display_expiry_date, f.created_at, f.updated_at,
 			s.name, s.prefecture, s.city, s.street,
-			c.name, c.start_date::text, c.end_date::text,
-			p.name, p.category,
-			fi.price_excluding_tax, fi.price_including_tax, fi.unit, fi.restriction_note
+			COALESCE(c.name, '') as campaign_name, 
+			COALESCE(c.start_date::text, '') as campaign_start_date, 
+			COALESCE(c.end_date::text, '') as campaign_end_date,
+			COALESCE(p.name, '') as product_name, 
+			COALESCE(p.category, '') as product_category,
+			COALESCE(fi.price_excluding_tax, 0) as price_excluding_tax, 
+			COALESCE(fi.price_including_tax, 0) as price_including_tax, 
+			COALESCE(fi.unit, '') as unit, 
+			COALESCE(fi.restriction_note, '') as restriction_note
 		FROM flyers f
 		JOIN stores s ON f.owner_store_id = s.id
-		JOIN campaigns c ON f.id = c.flyer_id
+		LEFT JOIN campaigns c ON f.id = c.flyer_id
 		LEFT JOIN flyer_items fi ON c.id = fi.campaign_id
 		LEFT JOIN products p ON fi.product_id = p.id
 		WHERE f.owner_store_id = $1
@@ -351,6 +377,7 @@ func (r *FlyerRepositoryImpl) GetAllFlyersByStoreID(ctx context.Context, storeID
 		ORDER BY f.created_at DESC, p.name
 	`
 
+	log.Printf("FlyerRepository: Executing query for storeID %s", storeID)
 	rows, err := r.db.QueryContext(ctx, query, storeID)
 	if err != nil {
 		log.Printf("FlyerRepository: Failed to execute query for storeID %s: %v", storeID, err)
@@ -368,15 +395,14 @@ func (r *FlyerRepositoryImpl) GetAllFlyersByStoreID(ctx context.Context, storeID
 		var flyerID, imageData, storeName, prefecture, city, street string
 		var displayExpiryDate sql.NullTime
 		var createdAt, updatedAt time.Time
-		var campaignName sql.NullString
-		var startDate, endDate sql.NullTime
-		var productName, productCategory, unit, restrictionNote sql.NullString
-		var priceExcludingTax, priceIncludingTax sql.NullInt64
+		var campaignName, campaignStartDate, campaignEndDate string
+		var productName, productCategory, unit, restrictionNote string
+		var priceExcludingTax, priceIncludingTax int
 
 		err := rows.Scan(
 			&flyerID, &imageData, &displayExpiryDate, &createdAt, &updatedAt,
 			&storeName, &prefecture, &city, &street,
-			&campaignName, &startDate, &endDate,
+			&campaignName, &campaignStartDate, &campaignEndDate,
 			&productName, &productCategory,
 			&priceExcludingTax, &priceIncludingTax,
 			&unit, &restrictionNote,
@@ -428,31 +454,23 @@ func (r *FlyerRepositoryImpl) GetAllFlyersByStoreID(ctx context.Context, storeID
 		flyerData := flyerDataMap[flyerID]
 
 		// Set campaign info (only once per flyer)
-		if campaignName.Valid && flyerData.CampaignInfo.Name == "" {
-			flyerData.CampaignInfo.Name = campaignName.String
-			if startDate.Valid {
-				flyerData.CampaignInfo.StartDate = startDate.Time.Format("2006-01-02")
-			} else {
-				flyerData.CampaignInfo.StartDate = ""
-			}
-			if endDate.Valid {
-				flyerData.CampaignInfo.EndDate = endDate.Time.Format("2006-01-02")
-			} else {
-				flyerData.CampaignInfo.EndDate = ""
-			}
+		if campaignName != "" && flyerData.CampaignInfo.Name == "" {
+			flyerData.CampaignInfo.Name = campaignName
+			flyerData.CampaignInfo.StartDate = campaignStartDate
+			flyerData.CampaignInfo.EndDate = campaignEndDate
 		}
 
 		// Add product if exists
-		if productName.Valid {
+		if productName != "" {
 			flyerData.FlyerItemsInfo = append(flyerData.FlyerItemsInfo, dto.FlyerItem{
 				Product: dto.Product{
-					Name:     productName.String,
-					Category: productCategory.String,
+					Name:     productName,
+					Category: productCategory,
 				},
-				PriceExcludingTax: int(priceExcludingTax.Int64),
-				PriceIncludingTax: int(priceIncludingTax.Int64),
-				Unit:              unit.String,
-				RestrictionNote:   restrictionNote.String,
+				PriceExcludingTax: priceExcludingTax,
+				PriceIncludingTax: priceIncludingTax,
+				Unit:              unit,
+				RestrictionNote:   restrictionNote,
 			})
 		}
 	}
@@ -462,6 +480,7 @@ func (r *FlyerRepositoryImpl) GetAllFlyersByStoreID(ctx context.Context, storeID
 	}
 
 	if len(flyerMap) == 0 {
+		log.Printf("FlyerRepository: No flyers found for storeID %s after processing", storeID)
 		return []*entity.Flyer{}, []*dto.FlyerData{}, nil // No flyers found
 	}
 
@@ -474,7 +493,7 @@ func (r *FlyerRepositoryImpl) GetAllFlyersByStoreID(ctx context.Context, storeID
 		flyerDataList[i] = flyerDataMap[flyerID]
 	}
 
-	log.Printf("FlyerRepository: Successfully retrieved %d flyers for storeID: %s", len(flyers), storeID)
+	log.Printf("FlyerRepository: Successfully processed and returning %d flyers for storeID %s", len(flyers), storeID)
 	return flyers, flyerDataList, nil
 }
 
@@ -486,72 +505,103 @@ func (r *FlyerRepositoryImpl) GetNearbyFlyers(ctx context.Context, city string, 
 	var totalFlyers, cityStores int
 	r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM flyers").Scan(&totalFlyers)
 	r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM stores WHERE city = $1", city).Scan(&cityStores)
-	log.Printf("Debug: Total flyers in DB: %d, Stores in city '%s': %d", totalFlyers, city, cityStores)
+	log.Printf("FlyerRepository: Total flyers in DB: %d, Stores in city '%s': %d", totalFlyers, city, cityStores)
 
-	query := `
-		SELECT
-			f.id, f.image_data, f.display_expiry_date, f.created_at, f.updated_at,
-			owner_store.id, owner_store.name, owner_store.prefecture, owner_store.city, owner_store.street,
-			COALESCE(c.name, ''), COALESCE(c.start_date::text, ''), COALESCE(c.end_date::text, ''),
-			COALESCE(p.name, ''), COALESCE(p.category, ''), COALESCE(fi.price_excluding_tax, 0), COALESCE(fi.price_including_tax, 0), COALESCE(fi.unit, ''), COALESCE(fi.restriction_note, '')
+	// Check flyers with valid owner stores in the specified city
+	validCountQuery := `
+		SELECT COUNT(DISTINCT f.id) 
 		FROM flyers f
-		JOIN stores owner_store ON f.owner_store_id = owner_store.id
-		JOIN campaigns c ON f.id = c.flyer_id
+		JOIN stores s ON f.owner_store_id = s.id
+		WHERE s.city = $1 AND (f.display_expiry_date IS NULL OR DATE(f.display_expiry_date) >= CURRENT_DATE)
+	`
+	var validCount int
+	err := r.db.QueryRowContext(ctx, validCountQuery, city).Scan(&validCount)
+	if err != nil {
+		log.Printf("FlyerRepository: Failed to count valid flyers for city %s: %v", city, err)
+	} else {
+		log.Printf("FlyerRepository: Found %d valid flyers for city %s", validCount, city)
+	}
+
+	// Use LEFT JOINs to ensure we get flyers even if campaigns or products are missing
+	// This query structure matches GetAllFlyersByStoreID for consistency
+	query := `
+		SELECT 
+			f.id, f.image_data, f.display_expiry_date, f.created_at, f.updated_at,
+			s.id, s.name, s.prefecture, s.city, s.street,
+			COALESCE(c.name, '') as campaign_name, 
+			COALESCE(c.start_date::text, '') as campaign_start_date, 
+			COALESCE(c.end_date::text, '') as campaign_end_date,
+			COALESCE(p.name, '') as product_name, 
+			COALESCE(p.category, '') as product_category,
+			COALESCE(fi.price_excluding_tax, 0) as price_excluding_tax, 
+			COALESCE(fi.price_including_tax, 0) as price_including_tax, 
+			COALESCE(fi.unit, '') as unit, 
+			COALESCE(fi.restriction_note, '') as restriction_note
+		FROM flyers f
+		JOIN stores s ON f.owner_store_id = s.id
+		LEFT JOIN campaigns c ON f.id = c.flyer_id
 		LEFT JOIN flyer_items fi ON c.id = fi.campaign_id
 		LEFT JOIN products p ON fi.product_id = p.id
-		WHERE owner_store.city = $1
+		WHERE s.city = $1
 		  AND (f.display_expiry_date IS NULL OR DATE(f.display_expiry_date) >= CURRENT_DATE)
 		ORDER BY f.created_at DESC, p.name
-		LIMIT $2
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, city, limit*10) // より多く取得して後でフィルタリング
+	log.Printf("FlyerRepository: Executing nearby flyers query for city: %s", city)
+	rows, err := r.db.QueryContext(ctx, query, city)
 	if err != nil {
-		log.Printf("Error executing nearby flyers query: %v", err)
+		log.Printf("FlyerRepository: Failed to execute nearby flyers query for city %s: %v", city, err)
 		return nil, nil, fmt.Errorf("error querying nearby flyers: %w", err)
 	}
 	defer rows.Close()
 	
-	log.Printf("Query executed successfully for city: %s", city)
+	log.Printf("FlyerRepository: Query executed successfully for city: %s", city)
 
-	flyerMap := make(map[uuid.UUID]*entity.Flyer)
-	flyerDataMap := make(map[uuid.UUID]*dto.FlyerData)
-	flyerOrder := []uuid.UUID{}
+	flyerMap := make(map[string]*entity.Flyer)
+	flyerDataMap := make(map[string]*dto.FlyerData)
+	flyerOrder := []string{} // To maintain order
 
 	for rows.Next() {
-		var flyerID uuid.UUID
-		var imageData []byte
+		log.Printf("FlyerRepository: Processing nearby flyer row for city %s", city)
+
+		var flyerID, imageData, storeName, prefecture, cityName, street string
+		var storeID string
 		var displayExpiryDate sql.NullTime
 		var createdAt, updatedAt time.Time
-
-		var storeID uuid.UUID
-		var storeName, prefecture, city, street string
-
-		var campaignName, startDate, endDate string
-		var productName, category string
+		var campaignName, campaignStartDate, campaignEndDate string
+		var productName, productCategory, unit, restrictionNote string
 		var priceExcludingTax, priceIncludingTax int
-		var unit, restrictionNote string
 
-		if err := rows.Scan(
+		err := rows.Scan(
 			&flyerID, &imageData, &displayExpiryDate, &createdAt, &updatedAt,
-			&storeID, &storeName, &prefecture, &city, &street,
-			&campaignName, &startDate, &endDate,
-			&productName, &category, &priceExcludingTax, &priceIncludingTax, &unit, &restrictionNote,
-		); err != nil {
-			return nil, nil, fmt.Errorf("error scanning row: %w", err)
+			&storeID, &storeName, &prefecture, &cityName, &street,
+			&campaignName, &campaignStartDate, &campaignEndDate,
+			&productName, &productCategory,
+			&priceExcludingTax, &priceIncludingTax,
+			&unit, &restrictionNote,
+		)
+		if err != nil {
+			log.Printf("FlyerRepository: Failed to scan nearby flyer row for city %s: %v", city, err)
+			return nil, nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
-		log.Printf("Debug row: flyerID=%s, storeID=%s, storeName=%s, campaignName=%s", flyerID, storeID, storeName, campaignName)
+		log.Printf("FlyerRepository: Processing nearby flyer - flyerID=%s, storeID=%s, storeName=%s, campaignName=%s", flyerID, storeID, storeName, campaignName)
 
+		// Initialize flyer if not exists
 		if _, exists := flyerMap[flyerID]; !exists {
+			parsedID, err := uuid.Parse(flyerID)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to parse flyer ID: %w", err)
+			}
+
 			var displayExpiry *time.Time
 			if displayExpiryDate.Valid {
 				displayExpiry = &displayExpiryDate.Time
 			}
 
 			flyerMap[flyerID] = &entity.Flyer{
-				ID:                flyerID,
-				ImageData:         imageData,
+				ID:                parsedID,
+				ImageData:         []byte(imageData),
 				DisplayExpiryDate: displayExpiry,
 				CreatedAt:         createdAt,
 				UpdatedAt:         updatedAt,
@@ -559,16 +609,16 @@ func (r *FlyerRepositoryImpl) GetNearbyFlyers(ctx context.Context, city string, 
 
 			flyerDataMap[flyerID] = &dto.FlyerData{
 				StoreInfo: dto.Store{
-					ID:         storeID.String(),
+					ID:         storeID,
 					Name:       storeName,
 					Prefecture: prefecture,
-					City:       city,
+					City:       cityName,
 					Street:     street,
 				},
 				CampaignInfo: dto.Campaign{
-					Name:      campaignName,
-					StartDate: startDate,
-					EndDate:   endDate,
+					Name:      "",
+					StartDate: "",
+					EndDate:   "",
 				},
 				FlyerItemsInfo:    []dto.FlyerItem{},
 				DisplayExpiryDate: displayExpiry,
@@ -577,19 +627,27 @@ func (r *FlyerRepositoryImpl) GetNearbyFlyers(ctx context.Context, city string, 
 			flyerOrder = append(flyerOrder, flyerID)
 		}
 
-		// 商品情報を追加（productNameが空でない場合のみ）
+		flyerData := flyerDataMap[flyerID]
+
+		// Set campaign info (only once per flyer)
+		if campaignName != "" && flyerData.CampaignInfo.Name == "" {
+			flyerData.CampaignInfo.Name = campaignName
+			flyerData.CampaignInfo.StartDate = campaignStartDate
+			flyerData.CampaignInfo.EndDate = campaignEndDate
+		}
+
+		// Add product if exists
 		if productName != "" {
-			flyerItem := dto.FlyerItem{
+			flyerData.FlyerItemsInfo = append(flyerData.FlyerItemsInfo, dto.FlyerItem{
 				Product: dto.Product{
 					Name:     productName,
-					Category: category,
+					Category: productCategory,
 				},
 				PriceExcludingTax: priceExcludingTax,
 				PriceIncludingTax: priceIncludingTax,
 				Unit:              unit,
 				RestrictionNote:   restrictionNote,
-			}
-			flyerDataMap[flyerID].FlyerItemsInfo = append(flyerDataMap[flyerID].FlyerItemsInfo, flyerItem)
+			})
 		}
 
 		// 制限数に達したらbreak
@@ -603,7 +661,8 @@ func (r *FlyerRepositoryImpl) GetNearbyFlyers(ctx context.Context, city string, 
 	}
 
 	if len(flyerMap) == 0 {
-		return []*entity.Flyer{}, []*dto.FlyerData{}, nil
+		log.Printf("FlyerRepository: No nearby flyers found for city %s after processing", city)
+		return []*entity.Flyer{}, []*dto.FlyerData{}, nil // No flyers found
 	}
 
 	// Convert maps to slices in order (制限数まで)
@@ -621,6 +680,6 @@ func (r *FlyerRepositoryImpl) GetNearbyFlyers(ctx context.Context, city string, 
 		flyerDataList[i] = flyerDataMap[flyerID]
 	}
 
-	log.Printf("FlyerRepository: Successfully retrieved %d nearby flyers for city: %s", len(flyers), city)
+	log.Printf("FlyerRepository: Successfully processed and returning %d nearby flyers for city %s", len(flyers), city)
 	return flyers, flyerDataList, nil
 }
