@@ -127,8 +127,17 @@ func (r *RecipeRepositoryImpl) SearchRecipesByIngredients(ctx context.Context, i
 	var args []interface{}
 
 	for i, ingredientName := range ingredientNames {
-		conditions = append(conditions, fmt.Sprintf("ri.name ILIKE $%d", i+1))
-		args = append(args, "%"+ingredientName+"%")
+		// トマトの特別な除外ルール
+		if ingredientName == "トマト" {
+			// トマトは「ミニトマト」や「カットトマト缶」にマッチしないようにする
+			conditions = append(conditions, fmt.Sprintf("(ri.name ILIKE $%d AND ri.name NOT ILIKE $%d AND ri.name NOT ILIKE $%d)", i+1, len(args)+2, len(args)+3))
+			args = append(args, "%"+ingredientName+"%")
+			args = append(args, "%ミニトマト%")
+			args = append(args, "%カットトマト缶%")
+		} else {
+			conditions = append(conditions, fmt.Sprintf("ri.name ILIKE $%d", i+1))
+			args = append(args, "%"+ingredientName+"%")
+		}
 	}
 
 	query := fmt.Sprintf(`
