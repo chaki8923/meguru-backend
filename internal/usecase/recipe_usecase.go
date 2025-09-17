@@ -210,6 +210,36 @@ func (u *RecipeUsecase) GetRecipeDetailWithAuth(ctx context.Context, recipeID, u
 	}, nil
 }
 
+// shouldExcludeRecipe は、画像から抽出した食材とレシピの食材を比較して、
+// 特定の組み合わせを除外するかどうかを判定する
+func (u *RecipeUsecase) shouldExcludeRecipe(extractedIngredients []string, recipeIngredients []string) bool {
+	// 画像から抽出した食材をマップに変換（高速検索のため）
+	extractedMap := make(map[string]bool)
+	for _, ingredient := range extractedIngredients {
+		extractedMap[ingredient] = true
+	}
+
+	// レシピの食材をチェック
+	for _, recipeIngredient := range recipeIngredients {
+		// トマトの除外ルール
+		if extractedMap["トマト"] {
+			if strings.Contains(recipeIngredient, "ミニトマト") ||
+				strings.Contains(recipeIngredient, "カットトマト") {
+				return true
+			}
+		}
+
+		// 玉ねぎの除外ルール
+		if extractedMap["玉ねぎ"] {
+			if strings.Contains(recipeIngredient, "紫玉ねぎ（薄切り）") {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecipesByImageRequest, userID string) (*dto.GetRecipesByImageResponse, error) {
 	// 1. 画像から食材を抽出
 	ingredientsText, err := u.openAIService.GetIngredientsFromImage(req.ImageBase64)
@@ -245,9 +275,14 @@ func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecip
 		}
 
 		// 食材名のリストを作成
-		var ingredientNames []string
+		var recipeIngredientNames []string
 		for _, ingredient := range ingredients {
-			ingredientNames = append(ingredientNames, ingredient.Name)
+			recipeIngredientNames = append(recipeIngredientNames, ingredient.Name)
+		}
+
+		// 除外ルールをチェック
+		if u.shouldExcludeRecipe(ingredientNames, recipeIngredientNames) {
+			continue // このレシピを除外
 		}
 
 		// 調味料名のリストを作成
@@ -270,7 +305,7 @@ func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecip
 			Calories:    recipe.Calories,
 			TotalPrice:  recipe.TotalPrice,
 			ImageURL:    recipe.ImageURL,
-			Ingredients: ingredientNames,
+			Ingredients: recipeIngredientNames,
 			Seasonings:  seasoningNames,
 			SavedFlg:    savedFlg,
 		}
@@ -356,14 +391,14 @@ func (u *RecipeUsecase) GetRecipesByImage(ctx context.Context, req *dto.GetRecip
 func (u *RecipeUsecase) SaveRecipe(ctx context.Context, req *dto.SaveRecipeRequest, userID string) (*dto.SaveRecipeResponse, error) {
 	// デバッグログ追加
 	fmt.Printf("SaveRecipe called with userID: %s, recipeID: %s\n", userID, req.RecipeID)
-	
+
 	// 1. ユーザーが存在するかチェック
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		fmt.Printf("Invalid user ID format: %s\n", userID)
 		return nil, errors.New("invalid user ID format")
 	}
-	
+
 	user, err := u.userRepo.GetByID(ctx, userUUID)
 	if err != nil {
 		fmt.Printf("Error getting user by ID: %v\n", err)
@@ -373,7 +408,7 @@ func (u *RecipeUsecase) SaveRecipe(ctx context.Context, req *dto.SaveRecipeReque
 		fmt.Printf("User not found: %s\n", userID)
 		return nil, errors.New("user not found")
 	}
-	
+
 	fmt.Printf("User found: %s\n", user.Email)
 
 	// 2. 既に保存されているかチェック
