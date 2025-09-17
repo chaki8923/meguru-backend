@@ -23,7 +23,7 @@ func (uc *UserController) CreateUser(c *gin.Context) {
 	var req usecase.CreateUserRequest
 	
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "入力内容を確認してください"})
 		return
 	}
 
@@ -40,7 +40,7 @@ func (uc *UserController) LoginUser(c *gin.Context) {
 	var req usecase.LoginUserRequest
 	
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "入力内容を確認してください"})
 		return
 	}
 
@@ -57,7 +57,7 @@ func (uc *UserController) ForgotPassword(c *gin.Context) {
 	var req usecase.ForgotPasswordRequest
 	
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "入力内容を確認してください"})
 		return
 	}
 
@@ -74,7 +74,7 @@ func (uc *UserController) ResetPassword(c *gin.Context) {
 	var req usecase.ResetPasswordRequest
 	
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "入力内容を確認してください"})
 		return
 	}
 

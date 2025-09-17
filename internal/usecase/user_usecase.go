@@ -101,12 +101,12 @@ func NewUserUsecase(userRepo repository.UserRepository, passwordResetTokenRepo r
 func (u *UserUsecase) CreateUser(ctx context.Context, req *CreateUserRequest) (*CreateUserResponse, error) {
 	existingUser, _ := u.userRepo.GetByEmail(ctx, req.Email)
 	if existingUser != nil {
-		return nil, errors.New("user with this email already exists")
+		return nil, errors.New("このメールアドレスは既に登録されています")
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("パスワードの暗号化に失敗しました")
 	}
 
 	user := &entity.User{
@@ -119,7 +119,7 @@ func (u *UserUsecase) CreateUser(ctx context.Context, req *CreateUserRequest) (*
 	}
 
 	if err := u.userRepo.Create(ctx, user); err != nil {
-		return nil, err
+		return nil, errors.New("ユーザーの登録に失敗しました")
 	}
 
 	return &CreateUserResponse{
@@ -133,20 +133,20 @@ func (u *UserUsecase) CreateUser(ctx context.Context, req *CreateUserRequest) (*
 func (u *UserUsecase) LoginUser(ctx context.Context, req *LoginUserRequest) (*LoginUserResponse, error) {
 	user, err := u.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
-		return nil, errors.New("invalid email or password")
+		return nil, errors.New("メールアドレスまたはパスワードが正しくありません")
 	}
 	if user == nil {
-		return nil, errors.New("invalid email or password")
+		return nil, errors.New("メールアドレスまたはパスワードが正しくありません")
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
 	if err != nil {
-		return nil, errors.New("invalid email or password")
+		return nil, errors.New("メールアドレスまたはパスワードが正しくありません")
 	}
 
 	token, err := u.jwtService.GenerateToken(user.ID, user.Email)
 	if err != nil {
-		return nil, errors.New("failed to generate token")
+		return nil, errors.New("ログインに失敗しました。しばらく時間をおいて再度お試しください")
 	}
 
 	return &LoginUserResponse{
@@ -222,7 +222,7 @@ func (u *UserUsecase) ResetPassword(ctx context.Context, req *ResetPasswordReque
 	// 新しいパスワードをハッシュ化
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, errors.New("パスワードリセットに失敗しました")
+		return nil, errors.New("パスワードの暗号化に失敗しました")
 	}
 
 	// ユーザーのパスワードを更新
